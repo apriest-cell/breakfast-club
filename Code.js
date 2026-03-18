@@ -1,8 +1,27 @@
 /***********************
  * CONFIG
  ***********************/
-const SPREADSHEET_ID = '1lCqBcbGObaSu4yguvk1JyHvGAsqa4b7Q9mwDbDtwGL0';
-const ADMIN_PIN = '1522'; // Stored securely on server side
+// Defaults — override via PropertiesService (run setupProperties_ once)
+const DEFAULT_SPREADSHEET_ID = '1lCqBcbGObaSu4yguvk1JyHvGAsqa4b7Q9mwDbDtwGL0';
+const DEFAULT_ADMIN_PIN = '1522';
+
+function getSpreadsheetId_() {
+  return PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID') || DEFAULT_SPREADSHEET_ID;
+}
+
+function getAdminPin_() {
+  return PropertiesService.getScriptProperties().getProperty('ADMIN_PIN') || DEFAULT_ADMIN_PIN;
+}
+
+/**
+ * Run once from the script editor to store secrets in PropertiesService.
+ * After running, the DEFAULT_ constants above can be removed from source.
+ */
+function setupProperties_() {
+  const props = PropertiesService.getScriptProperties();
+  props.setProperty('SPREADSHEET_ID', DEFAULT_SPREADSHEET_ID);
+  props.setProperty('ADMIN_PIN', DEFAULT_ADMIN_PIN);
+}
 
 const STUDENT_SHEET_NAME = 'Students';
 const LOG_SHEET_NAME = 'BreakfastLog';
@@ -18,7 +37,7 @@ const STUDENT_HEADERS = {
 };
 
 // Performance tuning: how many recent log rows to scan for "last action today"
-const LOG_LOOKBACK_ROWS = 800;
+const LOG_LOOKBACK_ROWS = 1500;
 
 /***********************
  * WEB APP
@@ -43,7 +62,7 @@ function onOpen() {
  * SECURITY
  ***********************/
 function validateAdminPin(inputPin) {
-  return inputPin === ADMIN_PIN;
+  return inputPin === getAdminPin_();
 }
 
 /***********************
@@ -51,11 +70,11 @@ function validateAdminPin(inputPin) {
  ***********************/
 
 /**
- * Opens the spreadsheet once and returns references to all relevant sheets.
- * Avoids repeated openById calls within a single execution context.
+ * Opens the spreadsheet and returns references to all relevant sheets.
+ * Call once per server function to avoid repeated openById calls.
  */
 function getSheets_() {
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const ss = SpreadsheetApp.openById(getSpreadsheetId_());
   return {
     student: ss.getSheetByName(STUDENT_SHEET_NAME),
     log: ss.getSheetByName(LOG_SHEET_NAME),
@@ -64,7 +83,7 @@ function getSheets_() {
 }
 
 function getArchiveSheet_() {
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const ss = SpreadsheetApp.openById(getSpreadsheetId_());
   let sheet = ss.getSheetByName(LOG_ARCHIVE_SHEET_NAME);
   if (!sheet) {
     sheet = ss.insertSheet(LOG_ARCHIVE_SHEET_NAME);
@@ -82,8 +101,8 @@ function getInitialData() {
   const lastRow = studentSheet.getLastRow();
   const students = [];
 
-  // Get today's status map (pass log sheet to avoid re-opening)
-  const statusMap = getTodayStatusMap_(sheets.log);
+  // Use cached status map when available (reduces Sheets API load from polling)
+  const statusMap = getCachedStatusMap_(sheets.log);
 
   if (lastRow >= 2) {
     const data = studentSheet.getRange(2, 1, lastRow - 1, 6).getValues();
@@ -105,6 +124,22 @@ function getInitialData() {
   }
 
   return { students };
+}
+
+/**
+ * Returns today's status map from CacheService if available,
+ * otherwise builds it from the log sheet and caches for 20 seconds.
+ */
+function getCachedStatusMap_(logSheet) {
+  const cache = CacheService.getScriptCache();
+  const cached = cache.get('todayStatusMap');
+  if (cached) {
+    try { return JSON.parse(cached); } catch (e) { /* fall through */ }
+  }
+
+  const map = getTodayStatusMap_(logSheet);
+  try { cache.put('todayStatusMap', JSON.stringify(map), 20); } catch (e) { /* cache write failure is non-fatal */ }
+  return map;
 }
 
 /**
@@ -147,43 +182,49 @@ function getTodayStatusMap_(logSheet) {
 function logSignAction(studentId, newStatus) {
   if (!studentId || !newStatus) return { success: false, message: 'Missing data' };
 
-  const lock = LockService.getScriptLock();
   try {
-    lock.waitLock(20000);
-
-    // Open spreadsheet once — pass sheets to all helpers
     const sheets = getSheets_();
     const logSheet = sheets.log;
     const studentSheet = sheets.student;
     const now = new Date();
     const tz = Session.getScriptTimeZone();
 
-    // 1. Check for duplicates (single log scan)
+    // 1. Duplicate check (lockless read — rare race is acceptable)
     const currentStatus = getLastActionToday_(logSheet, studentId, now);
     if (currentStatus === newStatus) {
       return { success: true, skippedDuplicate: true, studentId: String(studentId), newStatus };
     }
 
-    // 2. Increment visits if this is the FIRST IN of the day
-    //    (uses the result we already fetched — no second scan)
-    if (newStatus === 'IN' && currentStatus !== 'IN') {
-      incrementVisitCount_(studentSheet, studentId);
-    }
-
-    // 3. Log it
+    // 2. Append log row (lockless — Sheets handles concurrent appends safely)
     const dateOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const timeStr = Utilities.formatDate(now, tz, 'HH:mm:ss');
-
     const nextRow = logSheet.getLastRow() + 1;
     logSheet.getRange(nextRow, 1, 1, 5).setValues([[dateOnly, timeStr, studentId, newStatus, 'WebApp']]);
+
+    // 3. Invalidate cached status map so next poll picks up this change
+    try { CacheService.getScriptCache().remove('todayStatusMap'); } catch (e) {}
+
+    // 4. Increment visits outside the main write path (brief targeted lock)
+    //    Failure here is non-fatal — the sign-in log is already saved
+    if (newStatus === 'IN' && currentStatus !== 'IN') {
+      try {
+        const lock = LockService.getScriptLock();
+        lock.waitLock(10000);
+        try {
+          incrementVisitCount_(studentSheet, studentId);
+        } finally {
+          try { lock.releaseLock(); } catch (e) {}
+        }
+      } catch (e) {
+        console.error('incrementVisitCount_ lock timeout (non-fatal):', e);
+      }
+    }
 
     return { success: true, studentId: String(studentId), newStatus };
 
   } catch (e) {
     console.error('logSignAction error:', e);
     return { success: false, message: 'Server busy, try again.' };
-  } finally {
-    try { lock.releaseLock(); } catch (e) {}
   }
 }
 
@@ -218,19 +259,26 @@ function getLastActionToday_(logSheet, studentId, now) {
  * know this is the first IN of the day (no redundant log check).
  */
 function incrementVisitCount_(studentSheet, studentId) {
-  const data = studentSheet.getDataRange().getValues();
+  const lastRow = studentSheet.getLastRow();
+  if (lastRow < 2) return;
 
-  for (let i = 1; i < data.length; i++) {
-    if (String(data[i][STUDENT_HEADERS.STUDENT_ID - 1]) === String(studentId)) {
-      const current = Number(data[i][STUDENT_HEADERS.VISITS - 1]) || 0;
-      studentSheet.getRange(i + 1, STUDENT_HEADERS.VISITS).setValue(current + 1);
+  // Read only column 1 (student IDs) to find the row — avoids reading entire sheet
+  const ids = studentSheet.getRange(2, STUDENT_HEADERS.STUDENT_ID, lastRow - 1, 1).getValues();
+  const sid = String(studentId);
+
+  for (let i = 0; i < ids.length; i++) {
+    if (String(ids[i][0]) === sid) {
+      const row = i + 2;
+      const current = Number(studentSheet.getRange(row, STUDENT_HEADERS.VISITS).getValue()) || 0;
+      studentSheet.getRange(row, STUDENT_HEADERS.VISITS).setValue(current + 1);
       break;
     }
   }
 }
 
 function archiveOldLogs() {
-  const sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(LOG_SHEET_NAME);
+  const sheets = getSheets_();
+  const sheet = sheets.log;
   const archive = getArchiveSheet_();
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) return;
@@ -257,4 +305,52 @@ function archiveOldLogs() {
   if (keep.length) {
     sheet.getRange(2, 1, keep.length, 5).setValues(keep);
   }
+}
+
+/***********************
+ * AUTO SIGN-OUT
+ ***********************/
+
+/**
+ * Signs out all students still marked IN for today.
+ * Set up as a time-driven trigger (e.g., daily at 09:30).
+ * Run setupAutoSignOutTrigger() once from the script editor to install.
+ */
+function autoSignOutEndOfDay() {
+  const sheets = getSheets_();
+  const logSheet = sheets.log;
+  const statusMap = getTodayStatusMap_(logSheet);
+
+  const now = new Date();
+  const tz = Session.getScriptTimeZone();
+  const dateOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const timeStr = Utilities.formatDate(now, tz, 'HH:mm:ss');
+
+  const stillIn = Object.entries(statusMap).filter(([_, status]) => status === 'IN');
+  if (stillIn.length === 0) return;
+
+  const rows = stillIn.map(([sid]) => [dateOnly, timeStr, sid, 'OUT', 'AutoSignOut']);
+  const nextRow = logSheet.getLastRow() + 1;
+  logSheet.getRange(nextRow, 1, rows.length, 5).setValues(rows);
+
+  try { CacheService.getScriptCache().remove('todayStatusMap'); } catch (e) {}
+}
+
+/**
+ * Installs a daily trigger for autoSignOutEndOfDay at 09:30.
+ * Run once from the script editor. Safe to re-run (removes duplicates).
+ */
+function setupAutoSignOutTrigger() {
+  ScriptApp.getProjectTriggers().forEach(t => {
+    if (t.getHandlerFunction() === 'autoSignOutEndOfDay') {
+      ScriptApp.deleteTrigger(t);
+    }
+  });
+
+  ScriptApp.newTrigger('autoSignOutEndOfDay')
+    .timeBased()
+    .atHour(9)
+    .nearMinute(30)
+    .everyDays(1)
+    .create();
 }
