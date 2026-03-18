@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
+
+    <style>
+      :root {
+        --accent: #233444;
+        --accent-light: #3a5066;
+        --highlight: #F7A927;
+        --bg-color: #f0f2f5;
+        --card-bg: #ffffff;
+        --green-soft: #e6f4ea;
+        --green-border: #34a853;
+        --green-text: #137333;
+        --danger: #d93025;
+      }
+
+      * { box-sizing: border-box; }
+
+      html, body {
+        margin: 0; padding: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        background: var(--bg-color);
+        height: 100%;
+        color: #333;
+      }
+
+      body { padding: 16px; }
+
+      .app {
+        width: 100%;
+        max-width: 800px;
+        margin: 0 auto;
+      }
+
+      /* --- HEADER --- */
+      .header-card {
+        background: var(--card-bg);
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+        margin-bottom: 16px;
+        border-top: 6px solid var(--accent);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 1.5rem;
+        color: var(--accent);
+      }
+
+      .header-actions {
+        display: flex;
+        gap: 8px;
+      }
+
+      button {
+        padding: 8px 16px;
+        border-radius: 8px;
+        border: none;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 0.1s;
+      }
+      button:active { transform: scale(0.96); }
+
+      .btn-primary { background: var(--accent); color: white; }
+      .btn-ghost { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+      .btn-text { background: transparent; color: #666; font-size: 0.9rem; }
+
+      /* --- STATS BAR --- */
+      .stats-bar {
+        background: var(--accent);
+        color: white;
+        padding: 12px 20px;
+        border-radius: 10px;
+        margin-bottom: 20px;
+        font-weight: 600;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+      }
+
+      .live-indicator {
+        display: inline-block;
+        width: 8px; height: 8px;
+        background: var(--highlight);
+        border-radius: 50%;
+        margin-right: 8px;
+        animation: pulse 2s infinite;
+      }
+
+      @keyframes pulse {
+        0% { opacity: 1; }
+        50% { opacity: 0.4; }
+        100% { opacity: 1; }
+      }
+
+      /* --- SEARCH AREA --- */
+      .search-container {
+        position: relative;
+        margin-bottom: 20px;
+      }
+
+      .search-input-wrapper {
+        position: relative;
+      }
+
+      #searchInput {
+        width: 100%;
+        padding: 18px 20px;
+        padding-right: 50px;
+        font-size: 1.2rem;
+        border-radius: 12px;
+        border: 2px solid #ddd;
+        outline: none;
+        transition: border-color 0.2s;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      }
+
+      #searchInput:focus {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 4px rgba(35, 52, 68, 0.1);
+      }
+
+      .clear-search {
+        position: absolute;
+        right: 15px;
+        top: 50%;
+        transform: translateY(-50%);
+        background: #eee;
+        border-radius: 50%;
+        width: 24px; height: 24px;
+        display: flex; align-items: center; justify-content: center;
+        cursor: pointer;
+        color: #666;
+        font-weight: bold;
+        visibility: hidden;
+      }
+
+      /* Phone warning under search */
+      .phone-warning {
+        margin-top: -8px;
+        margin-bottom: 18px;
+        padding: 12px 14px;
+        border-radius: 12px;
+        background: #fff;
+        border-left: 6px solid var(--danger);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        color: #333;
+        font-size: 0.95rem;
+        line-height: 1.35;
+      }
+      .phone-warning strong { color: var(--danger); }
+
+      /* --- RESULTS LIST --- */
+      .results {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        padding-bottom: 80px;
+      }
+
+      .student-card {
+        background: white;
+        padding: 16px 20px;
+        border-radius: 12px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        cursor: pointer;
+        border-left: 6px solid transparent;
+        transition: all 0.2s ease;
+      }
+
+      .student-card:active { transform: scale(0.98); }
+
+      .student-card.status-in {
+        background: var(--green-soft);
+        border-left: 6px solid var(--green-border);
+      }
+
+      .student-info h3 { margin: 0; font-size: 1.1rem; color: #222; }
+      .student-card.status-in .student-info h3 { color: var(--green-text); }
+
+      .student-meta { font-size: 0.9rem; color: #666; margin-top: 4px; }
+      .student-card.status-in .student-meta { color: var(--green-text); opacity: 0.8; }
+
+      .status-badge {
+        font-size: 0.8rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        padding: 6px 12px;
+        border-radius: 20px;
+        background: #eee;
+        color: #666;
+      }
+
+      .student-card.status-in .status-badge {
+        background: white;
+        color: var(--green-border);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      }
+
+      .card-disabled { opacity: 0.6; pointer-events: none; }
+
+      /* --- SYNC ERROR BANNER --- */
+      .sync-error-banner {
+        display: none;
+        background: #fce8e6;
+        border: 1px solid var(--danger);
+        border-radius: 10px;
+        padding: 10px 16px;
+        margin-bottom: 16px;
+        color: var(--danger);
+        font-weight: 600;
+        font-size: 0.9rem;
+        text-align: center;
+      }
+
+      .sync-error-banner.visible { display: block; }
+
+      /* --- TOAST NOTIFICATION --- */
+      #toast {
+        visibility: hidden;
+        min-width: 250px;
+        background-color: #333;
+        color: #fff;
+        text-align: center;
+        border-radius: 50px;
+        padding: 16px;
+        position: fixed;
+        z-index: 1000;
+        left: 50%;
+        bottom: 30px;
+        transform: translateX(-50%);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        font-weight: 600;
+        opacity: 0;
+        transition: opacity 0.3s, bottom 0.3s;
+      }
+
+      #toast.show {
+        visibility: visible;
+        opacity: 1;
+        bottom: 50px;
+      }
+
+      #toast.success { background-color: var(--green-border); }
+      #toast.error { background-color: var(--danger); }
+
+      /* --- ADMIN PANEL --- */
+      .admin-panel {
+        display: none;
+        background: white;
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        z-index: 2000;
+        padding: 20px;
+        overflow-y: auto;
+      }
+
+      .admin-list-row {
+        padding: 10px 0;
+        border-bottom: 1px solid #eee;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .empty-state {
+        text-align: center;
+        color: #888;
+        margin-top: 40px;
+      }
+
+      .hidden { display: none; }
+    </style>
+  </head>
+
+  <body>
+    <div class="app" id="mainApp">
+      <div class="header-card">
+        <h1>Breakfast Club</h1>
+        <div class="header-actions">
+          <button class="btn-ghost" id="btnRefresh">Refresh</button>
+          <button class="btn-primary" id="btnAdmin">Admin</button>
+        </div>
+      </div>
+
+      <div class="stats-bar">
+        <span><span class="live-indicator"></span>Live Counter</span>
+        <span id="counterDisplay">0 Students In</span>
+      </div>
+
+      <!-- Persistent error banner for failed syncs -->
+      <div class="sync-error-banner" id="syncErrorBanner">
+        ⚠ Some sign-ins failed to save. Staff: check Admin panel to retry.
+      </div>
+
+      <div class="search-container">
+        <div class="search-input-wrapper">
+          <input type="text" id="searchInput" placeholder="Start typing name..." autocomplete="off">
+          <div class="clear-search" id="clearSearch">✕</div>
+        </div>
+      </div>
+
+      <div class="phone-warning" role="note" aria-label="Phone use warning">
+        <strong>Phone reminder:</strong> Phones must not be out on display. If a phone is seen by staff, it will be confiscated without warning and an after-school detention will be set.
+      </div>
+
+      <div id="results" class="results">
+        <div class="empty-state">
+          Type a name above to find a student.<br><br>
+          <small>Green cards are signed in.</small>
+        </div>
+      </div>
+    </div>
+
+    <div id="toast">Message here</div>
+
+    <div id="adminPanel" class="admin-panel">
+      <div class="header-card">
+        <h1>Admin View</h1>
+        <button class="btn-primary" id="btnCloseAdmin">Close</button>
+      </div>
+
+      <div style="margin-bottom: 20px; font-weight:bold; color:var(--accent);">
+        Currently Signed In: <span id="adminCount">0</span>
+      </div>
+
+      <div id="adminList">Loading...</div>
+
+      <div id="failedSyncSection" class="hidden" style="margin-top:30px; border-top:2px solid red; padding-top:10px;">
+        <h3 style="color:red">Failed Sign-ins (Retry Needed)</h3>
+        <div id="failedList"></div>
+      </div>
+    </div>
+
+    <script>
+      // --- STATE MANAGEMENT ---
+      let allStudents = [];
+      let statusById = {};        // map: id -> 'IN' | 'OUT'
+      let searchTimer = null;
+      let updatingIds = new Set();
+      let failedOps = [];
+      let lastActionTime = 0;     // Timestamp of last sign action (prevents poll overlap)
+
+      // --- DOM ELEMENTS ---
+      const els = {
+        input: document.getElementById('searchInput'),
+        clearBtn: document.getElementById('clearSearch'),
+        results: document.getElementById('results'),
+        counter: document.getElementById('counterDisplay'),
+        toast: document.getElementById('toast'),
+        adminPanel: document.getElementById('adminPanel'),
+        adminList: document.getElementById('adminList'),
+        mainApp: document.getElementById('mainApp'),
+        failedSection: document.getElementById('failedSyncSection'),
+        failedList: document.getElementById('failedList'),
+        adminCount: document.getElementById('adminCount'),
+        syncBanner: document.getElementById('syncErrorBanner')
+      };
+
+      // --- INITIALISATION ---
+      window.addEventListener('load', () => {
+        loadData();
+        els.input.focus();
+
+        // Polling every 15s — skips if mid-update or within 5s of a sign action
+        setInterval(() => {
+          const cooldownElapsed = Date.now() - lastActionTime > 5000;
+          if (updatingIds.size === 0 && cooldownElapsed) {
+            loadData(true);
+          }
+        }, 15000);
+      });
+
+      els.input.addEventListener('input', (e) => {
+        els.clearBtn.style.visibility = e.target.value ? 'visible' : 'hidden';
+        debounceSearch();
+      });
+
+      // Escape key clears search — ready for next student
+      els.input.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') resetSearchUI();
+      });
+
+      els.clearBtn.addEventListener('click', () => {
+        resetSearchUI();
+      });
+
+      document.getElementById('btnRefresh').addEventListener('click', () => loadData());
+
+      document.getElementById('btnAdmin').addEventListener('click', openAdmin);
+      document.getElementById('btnCloseAdmin').addEventListener('click', () => {
+        els.adminPanel.style.display = 'none';
+        els.mainApp.style.display = 'block';
+        els.input.focus();
+      });
+
+      // --- DATA LOADING ---
+      function loadData(isBackground = false) {
+        if (!isBackground) showToast('Syncing data...', 'neutral');
+
+        google.script.run
+          .withSuccessHandler((data) => {
+            allStudents = (data && data.students) ? data.students : [];
+
+            // Update statuses unless user is currently toggling that ID
+            allStudents.forEach(s => {
+              if (!updatingIds.has(s.studentId)) {
+                statusById[s.studentId] = s.status || 'OUT';
+              }
+            });
+
+            updateCounter();
+
+            if (!isBackground) hideToast();
+
+            // If user is typing, re-run search with fresh data
+            if (els.input.value.length > 0) runSearch();
+          })
+          .withFailureHandler(err => {
+            console.error(err);
+            if (!isBackground) showToast('Connection failed', 'error');
+          })
+          .getInitialData();
+      }
+
+      // --- SEARCH ---
+      function debounceSearch() {
+        if (searchTimer) clearTimeout(searchTimer);
+        searchTimer = setTimeout(runSearch, 150);
+      }
+
+      function runSearch() {
+        const query = els.input.value.trim().toLowerCase();
+
+        if (query.length < 1) {
+          renderResults([]);
+          return;
+        }
+
+        const matches = allStudents
+          .filter(s => (s.displayName || '').toLowerCase().includes(query))
+          .slice(0, 20);
+
+        renderResults(matches);
+      }
+
+      function renderResults(students) {
+        els.results.innerHTML = '';
+
+        if (students.length === 0 && els.input.value.length > 0) {
+          els.results.innerHTML = '<div class="empty-state">No student found.</div>';
+          return;
+        } else if (students.length === 0) {
+          els.results.innerHTML =
+            '<div class="empty-state">' +
+              'Type a name above.<br><br>' +
+              '<small>Green cards are signed in.</small>' +
+            '</div>';
+          return;
+        }
+
+        students.forEach(s => {
+          const id = s.studentId;
+          const status = statusById[id] || 'OUT';
+          const isProcessing = updatingIds.has(id);
+          const isIn = status === 'IN';
+
+          const card = document.createElement('div');
+          card.className = 'student-card' +
+            (isIn ? ' status-in' : '') +
+            (isProcessing ? ' card-disabled' : '');
+          card.setAttribute('role', 'button');
+          card.setAttribute('tabindex', '0');
+
+          // Build card content using textContent for safety
+          const infoDiv = document.createElement('div');
+          infoDiv.className = 'student-info';
+
+          const nameEl = document.createElement('h3');
+          nameEl.textContent = s.displayName;
+          infoDiv.appendChild(nameEl);
+
+          const metaEl = document.createElement('div');
+          metaEl.className = 'student-meta';
+          metaEl.textContent = s.tutor || '';
+          infoDiv.appendChild(metaEl);
+
+          const badge = document.createElement('div');
+          badge.className = 'status-badge';
+          badge.textContent = isIn ? 'SIGNED IN' : 'OUT';
+
+          card.appendChild(infoDiv);
+          card.appendChild(badge);
+
+          // Click and keyboard support
+          const handler = () => toggleSign(s);
+          card.addEventListener('click', handler);
+          card.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              handler();
+            }
+          });
+
+          els.results.appendChild(card);
+        });
+      }
+
+      // --- ACTION LOGIC ---
+      function resetSearchUI() {
+        els.input.value = '';
+        els.clearBtn.style.visibility = 'hidden';
+        els.input.focus();
+        renderResults([]);
+      }
+
+      function toggleSign(student) {
+        const id = student.studentId;
+        if (updatingIds.has(id)) return;
+
+        const currentStatus = statusById[id] || 'OUT';
+        const newStatus = currentStatus === 'IN' ? 'OUT' : 'IN';
+
+        // Optimistic UI
+        updatingIds.add(id);
+        statusById[id] = newStatus;
+        lastActionTime = Date.now(); // Delay next poll to prevent flicker
+        updateCounter();
+        runSearch();
+
+        showToast(
+          newStatus === 'IN'
+            ? 'Signed IN: ' + student.displayName
+            : 'Signed OUT: ' + student.displayName,
+          'success'
+        );
+
+        // Clear search after tap — slightly longer window for mistake spotting
+        setTimeout(resetSearchUI, 1000);
+
+        google.script.run
+          .withSuccessHandler((res) => {
+            updatingIds.delete(id);
+
+            if (!res || !res.success) {
+              addToFailedQueue(student, newStatus);
+              showToast('Queued for admin retry: ' + student.displayName, 'error');
+            }
+          })
+          .withFailureHandler((err) => {
+            console.error(err);
+            updatingIds.delete(id);
+
+            addToFailedQueue(student, newStatus);
+            showToast('Queued for admin retry: ' + student.displayName, 'error');
+          })
+          .logSignAction(id, newStatus);
+      }
+
+      function updateCounter() {
+        const count = Object.values(statusById).filter(s => s === 'IN').length;
+        els.counter.textContent = count + ' Student' + (count === 1 ? '' : 's') + ' In';
+        els.adminCount.textContent = count;
+      }
+
+      // --- TOAST ---
+      let toastTimeout;
+      function showToast(msg, type) {
+        type = type || 'neutral';
+        els.toast.textContent = msg;
+        els.toast.className = type;
+        els.toast.classList.add('show');
+
+        if (toastTimeout) clearTimeout(toastTimeout);
+        toastTimeout = setTimeout(hideToast, 3000);
+      }
+
+      function hideToast() {
+        els.toast.classList.remove('show');
+      }
+
+      // --- ADMIN ---
+      function openAdmin() {
+        const pin = prompt('Enter Admin PIN:');
+        if (!pin) return;
+
+        google.script.run
+          .withSuccessHandler(isValid => {
+            if (isValid) {
+              els.mainApp.style.display = 'none';
+              els.adminPanel.style.display = 'block';
+              renderAdminList();
+              updateCounter();
+              renderFailedList();
+            } else {
+              alert('Incorrect PIN');
+            }
+          })
+          .validateAdminPin(pin);
+      }
+
+      function renderAdminList() {
+        const list = allStudents.filter(s => statusById[s.studentId] === 'IN');
+        list.sort((a, b) => (a.displayName || '').localeCompare(b.displayName));
+
+        if (list.length === 0) {
+          els.adminList.innerHTML = '<div class="empty-state">No students currently signed in.</div>';
+          return;
+        }
+
+        els.adminList.innerHTML = '';
+        list.forEach(s => {
+          const row = document.createElement('div');
+          row.className = 'admin-list-row';
+
+          const name = document.createElement('strong');
+          name.textContent = s.displayName;
+
+          const tutor = document.createElement('span');
+          tutor.textContent = s.tutor || '';
+
+          row.appendChild(name);
+          row.appendChild(tutor);
+          els.adminList.appendChild(row);
+        });
+      }
+
+      // --- FAILED OPS (ADMIN RETRY) ---
+      function addToFailedQueue(student, intendedStatus) {
+        const key = student.studentId + '__' + intendedStatus;
+        if (failedOps.some(op => op.key === key)) return;
+
+        failedOps.push({ key: key, student: student, intendedStatus: intendedStatus, ts: Date.now() });
+
+        // Show persistent banner so staff notice even if student has walked away
+        els.syncBanner.classList.add('visible');
+        els.failedSection.classList.remove('hidden');
+        renderFailedList();
+      }
+
+      function renderFailedList() {
+        if (failedOps.length === 0) {
+          els.syncBanner.classList.remove('visible');
+          els.failedSection.classList.add('hidden');
+          els.failedList.innerHTML = '';
+          return;
+        }
+
+        els.failedList.innerHTML = '';
+        failedOps.forEach((op, i) => {
+          const row = document.createElement('div');
+          row.className = 'admin-list-row';
+
+          const label = document.createElement('span');
+          label.textContent = op.student.displayName + ' → ' + op.intendedStatus;
+
+          const btn = document.createElement('button');
+          btn.className = 'btn-ghost';
+          btn.textContent = 'Retry';
+          btn.addEventListener('click', () => retryOp(i));
+
+          row.appendChild(label);
+          row.appendChild(btn);
+          els.failedList.appendChild(row);
+        });
+      }
+
+      function retryOp(index) {
+        const op = failedOps[index];
+        if (!op) return;
+
+        const id = op.student.studentId;
+        const intendedStatus = op.intendedStatus;
+
+        if (updatingIds.has(id)) return;
+        updatingIds.add(id);
+
+        showToast('Retrying: ' + op.student.displayName, 'neutral');
+
+        google.script.run
+          .withSuccessHandler((res) => {
+            updatingIds.delete(id);
+
+            if (res && res.success) {
+              failedOps.splice(index, 1);
+              renderFailedList();
+              showToast('Saved: ' + op.student.displayName, 'success');
+              loadData(true);
+            } else {
+              showToast('Still failing: ' + op.student.displayName, 'error');
+            }
+          })
+          .withFailureHandler((err) => {
+            console.error(err);
+            updatingIds.delete(id);
+            showToast('Still failing: ' + op.student.displayName, 'error');
+          })
+          .logSignAction(id, intendedStatus);
+      }
+    </script>
+  </body>
+</html>
