@@ -54,10 +54,11 @@ function doGet(e) {
       .createTemplateFromFile('Mobile')
       .evaluate()
       .setTitle('Rise and Shine — Mobile')
+      // Apps Script's addMetaTag only whitelists a few names — viewport and
+      // apple-mobile-web-app-capable are allowed; status-bar-style/theme-color
+      // are rejected ("meta tag not allowed in this context"), so omit them.
       .addMetaTag('viewport', 'width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover')
       .addMetaTag('apple-mobile-web-app-capable', 'yes')
-      .addMetaTag('apple-mobile-web-app-status-bar-style', 'default')
-      .addMetaTag('theme-color', '#FBF1E3')
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
   }
 
