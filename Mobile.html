@@ -1236,12 +1236,8 @@
           clear(root);
           var app = el('div', 'm-app');
 
-          // status bar
-          var sb = el('div', 'm-statusbar');
-          var clk = el('span'); clk.id = 'm-clock'; sb.appendChild(clk);
-          var right = el('div', 'm-statusbar-right'); right.innerHTML = ICON_SIGNAL + ICON_WIFI + ICON_BATTERY;
-          sb.appendChild(right);
-          app.appendChild(sb);
+          // (No faux iOS status bar: on a real phone the system already draws
+          //  one, and a second would double up. The header is the top element.)
 
           // header
           var header = el('div', 'm-header');
@@ -1893,11 +1889,10 @@
         function init() {
           build();
           loadFailed();
-          renderClock(); renderMeta();
+          renderMeta();
           renderCounter(); renderRecents(); renderList();
           loadData(false);
 
-          setInterval(renderClock, 15000);
           setInterval(renderMeta, 30000);
           setInterval(function () {
             if (Object.keys(updatingIds).length) return;          // skip while writing
