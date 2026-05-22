@@ -3,22 +3,61 @@
   <head>
     <base target="_top">
 
-    <!-- Phone auto-detect: send small touch devices to the mobile view.
-         Runs before any rendering so the kiosk never flashes on a phone.
-         An explicit ?view=kiosk (forcedView) opts out. The iPad/desktop is
-         not a phone, so this is a no-op there and the kiosk loads unchanged. -->
+    <!-- Phone routing: the kiosk is the default page, but a phone-sized device
+         should land on the mobile sign-in app. Apps Script can't read the
+         user-agent server-side, so we detect here. An explicit ?view=kiosk
+         (forcedView) opts out; iPad/desktop is not a phone, so this is a no-op.
+         The sandboxed web-app iframe blocks AUTOMATIC top-window navigation, so
+         we attempt the redirect and, if we're still here, reveal a one-tap gate
+         (a real click is always permitted by the sandbox). -->
     <script>
       var WEB_APP_URL = '<?= webAppUrl ?>';
+      var FORCED_VIEW = '<?= forcedView ?>';
+
+      function rsMobileUrl() {
+        // getUrl() is preferred; document.referrer is the /exec page that
+        // embedded this iframe, used as a fallback if getUrl() came back empty.
+        var base = WEB_APP_URL || document.referrer || '';
+        base = base.split('#')[0].split('?')[0];
+        return base ? (base + '?view=mobile') : '';
+      }
+      function rsIsPhone() {
+        var ua = navigator.userAgent || '';
+        if (/Android.*Mobile|iPhone|iPod|Windows Phone|BlackBerry|webOS/i.test(ua)) return true;
+        var coarse = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+        var smallest = Math.min(screen.width || 9999, screen.height || 9999);
+        return smallest <= 600 && (coarse || 'ontouchstart' in window);
+      }
+      function rsShowGate(url) {
+        if (document.getElementById('rs-mobile-gate')) return;
+        var d = document.createElement('div');
+        d.id = 'rs-mobile-gate';
+        d.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#FBF1E3;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:32px;text-align:center;font-family:Poppins,system-ui,-apple-system,sans-serif;color:#25354A;';
+        var html = '<div style="font-weight:800;font-size:24px;letter-spacing:-0.01em;">Rise <span style="color:#F5A623;">and</span> Shine</div>'
+          + '<div style="font-size:14px;color:#5A6878;max-width:280px;line-height:1.5;">You\'re on a phone &mdash; open the mobile sign-in app.</div>';
+        if (url) {
+          html += '<a href="' + url + '" target="_top" style="background:#25354A;color:#FBF1E3;text-decoration:none;font-weight:700;font-size:15px;padding:15px 28px;border-radius:999px;box-shadow:3px 3px 0 #F5A623;">Open mobile app &rarr;</a>';
+        } else {
+          html += '<div style="font-size:13px;color:#5A6878;max-width:280px;line-height:1.5;">Add <b>?view=mobile</b> to the end of the web address.</div>';
+        }
+        html += '<a href="#" id="rs-stay" style="font-size:12px;color:#5A6878;">Use the full kiosk instead</a>';
+        d.innerHTML = html;
+        document.body.appendChild(d);
+        var stay = document.getElementById('rs-stay');
+        if (stay) stay.addEventListener('click', function (ev) { ev.preventDefault(); if (d.parentNode) d.parentNode.removeChild(d); });
+      }
       (function () {
         try {
-          if ('<?= forcedView ?>') return;            // ?view=kiosk respected
-          var ua = navigator.userAgent || '';
-          var smallest = Math.min(screen.width || 9999, screen.height || 9999);
-          var isPhone = /Android.*Mobile|iPhone|iPod|Windows Phone|BlackBerry|webOS/i.test(ua)
-            || (smallest <= 600 && 'ontouchstart' in window);
-          if (isPhone && WEB_APP_URL) {
-            window.top.location.href = WEB_APP_URL + (WEB_APP_URL.indexOf('?') > -1 ? '&' : '?') + 'view=mobile';
-          }
+          if (FORCED_VIEW) return;        // ?view=kiosk respected
+          if (!rsIsPhone()) return;       // iPad / desktop -> kiosk, unchanged
+          var url = rsMobileUrl();
+          // 1) Try a seamless automatic redirect of the whole tab.
+          if (url) { try { window.top.location.href = url; } catch (e) {} }
+          // 2) The sandbox usually blocks (1) on load; if we're still here a
+          //    moment later, show the branded one-tap gate.
+          var arm = function () { setTimeout(function () { rsShowGate(url); }, 700); };
+          if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', arm);
+          else arm();
         } catch (err) { /* fall through to the kiosk */ }
       })();
     </script>
