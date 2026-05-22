@@ -1,779 +1,1975 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
     <base target="_top">
+
+    <!-- Phone auto-detect: send small touch devices to the mobile view.
+         Runs before any rendering so the kiosk never flashes on a phone.
+         An explicit ?view=kiosk (forcedView) opts out. The iPad/desktop is
+         not a phone, so this is a no-op there and the kiosk loads unchanged. -->
+    <script>
+      var WEB_APP_URL = '<?= webAppUrl ?>';
+      (function () {
+        try {
+          if ('<?= forcedView ?>') return;            // ?view=kiosk respected
+          var ua = navigator.userAgent || '';
+          var smallest = Math.min(screen.width || 9999, screen.height || 9999);
+          var isPhone = /Android.*Mobile|iPhone|iPod|Windows Phone|BlackBerry|webOS/i.test(ua)
+            || (smallest <= 600 && 'ontouchstart' in window);
+          if (isPhone && WEB_APP_URL) {
+            window.top.location.href = WEB_APP_URL + (WEB_APP_URL.indexOf('?') > -1 ? '&' : '?') + 'view=mobile';
+          }
+        } catch (err) { /* fall through to the kiosk */ }
+      })();
+    </script>
+
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
+    <title>Rise and Shine — Breakfast Club</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
 
     <style>
+      /* === RISE AND SHINE — BRAND TOKENS (Classic palette) === */
       :root {
-        --accent: #233444;
-        --accent-light: #3a5066;
-        --highlight: #F7A927;
-        --bg-color: #f0f2f5;
-        --card-bg: #ffffff;
-        --green-soft: #e6f4ea;
-        --green-border: #34a853;
-        --green-text: #137333;
-        --danger: #d93025;
+        --navy: #25354A;
+        --navy-light: #3A4A5E;
+        --navy-2: #4D5D72;
+        --amber: #F5A623;
+        --amber-light: #F5C15E;
+        --cream: #FBF1E3;
+        --cream-2: #F5E6CC;
+        --cream-3: #EFDCB8;
+        --ink: #1A2638;
+        --ink-soft: #5A6878;
+        --rule: #E3D2B3;
+        --rule-soft: #EBDEC4;
+        --surface: #FFFFFF;
+        --surface-warm: #FDF7EB;
+
+        --in: #2F7A4F;
+        --in-deep: #1F5236;
+        --in-soft: #D9EBDF;
+        --in-soft-2: #C9DFD0;
+
+        --danger: #B5392B;
+        --danger-soft: #F5DCD6;
+
+        --display: 'Poppins', system-ui, -apple-system, sans-serif;
+        --sans: 'Montserrat', system-ui, -apple-system, sans-serif;
+
+        /* density (Spacious default) */
+        --row-pad-y: 16px;
+        --row-pad-x: 20px;
+        --radius-sm: 8px;
+        --radius: 14px;
+        --radius-lg: 20px;
       }
 
       * { box-sizing: border-box; }
-
-      html, body {
-        margin: 0; padding: 0;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-        background: var(--bg-color);
-        height: 100%;
-        color: #333;
+      html, body { margin: 0; padding: 0; }
+      body {
+        font-family: var(--sans);
+        background: var(--cream);
+        color: var(--ink);
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
+        overflow: hidden;
+        height: 100vh;
+        letter-spacing: -0.005em;
       }
+      button { font-family: inherit; cursor: pointer; }
+      input { font-family: inherit; }
 
-      body { padding: 16px; }
-
-      .app {
-        width: 100%;
-        max-width: 800px;
-        margin: 0 auto;
-      }
-
-      /* --- HEADER --- */
-      .header-card {
-        background: var(--card-bg);
-        border-radius: 12px;
-        padding: 20px;
-        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
-        margin-bottom: 16px;
-        border-top: 6px solid var(--accent);
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-      }
-
-      h1 {
-        margin: 0;
-        font-size: 1.5rem;
-        color: var(--accent);
-      }
-
-      .header-actions {
-        display: flex;
-        gap: 8px;
-      }
-
-      button {
-        padding: 8px 16px;
-        border-radius: 8px;
-        border: none;
-        font-weight: 600;
-        cursor: pointer;
-        transition: transform 0.1s;
-      }
-      button:active { transform: scale(0.96); }
-
-      .btn-primary { background: var(--accent); color: white; }
-      .btn-ghost { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
-      .btn-text { background: transparent; color: #666; font-size: 0.9rem; }
-
-      /* --- STATS BAR --- */
-      .stats-bar {
-        background: var(--accent);
-        color: white;
-        padding: 12px 20px;
-        border-radius: 10px;
-        margin-bottom: 20px;
-        font-weight: 600;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
-      }
-
-      .live-indicator {
-        display: inline-block;
-        width: 8px; height: 8px;
-        background: var(--highlight);
-        border-radius: 50%;
-        margin-right: 8px;
-        animation: pulse 2s infinite;
-      }
-
-      @keyframes pulse {
-        0% { opacity: 1; }
-        50% { opacity: 0.4; }
-        100% { opacity: 1; }
-      }
-
-      /* --- SEARCH AREA --- */
-      .search-container {
+      /* === APP SHELL (fills the device — no simulated bezel) === */
+      .kiosk {
         position: relative;
-        margin-bottom: 20px;
+        width: 100vw; height: 100vh;
+        overflow: hidden;
+        display: flex; flex-direction: column;
+        background: var(--cream);
       }
 
-      .search-input-wrapper {
-        position: relative;
+      /* time-of-day mood overlay */
+      .mood {
+        position: absolute; inset: 0;
+        pointer-events: none;
+        z-index: 0;
+        overflow: hidden;
       }
-
-      #searchInput {
-        width: 100%;
-        padding: 18px 20px;
-        padding-right: 50px;
-        font-size: 1.2rem;
-        border-radius: 12px;
-        border: 2px solid #ddd;
-        outline: none;
-        transition: border-color 0.2s;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-      }
-
-      #searchInput:focus {
-        border-color: var(--accent);
-        box-shadow: 0 0 0 4px rgba(35, 52, 68, 0.1);
-      }
-
-      .clear-search {
+      .mood-sun {
         position: absolute;
-        right: 15px;
-        top: 50%;
-        transform: translateY(-50%);
-        background: #eee;
+        top: -180px; right: -180px;
+        width: 520px; height: 520px;
         border-radius: 50%;
-        width: 24px; height: 24px;
-        display: flex; align-items: center; justify-content: center;
-        cursor: pointer;
-        color: #666;
-        font-weight: bold;
-        visibility: hidden;
+        background: radial-gradient(circle at center,
+          rgba(245, 193, 94, 0.30) 0%,
+          rgba(245, 166, 35, 0.10) 35%,
+          transparent 70%);
+        filter: blur(2px);
+      }
+      .mood-rays {
+        position: absolute;
+        top: -200px; right: -200px;
+        width: 600px; height: 600px;
+        opacity: 0.5;
+        animation: ray-spin 80s linear infinite;
+      }
+      @keyframes ray-spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
       }
 
-      /* Phone warning under search */
-      .phone-warning {
-        margin-top: -8px;
-        margin-bottom: 18px;
-        padding: 12px 14px;
-        border-radius: 12px;
-        background: #fff;
-        border-left: 6px solid var(--danger);
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        color: #333;
-        font-size: 0.95rem;
-        line-height: 1.35;
+      .kiosk-inner {
+        position: relative; z-index: 1;
+        flex: 1;
+        display: grid;
+        grid-template-rows: auto auto 1fr auto;
+        padding: 26px 36px 20px;
+        gap: 18px;
+        min-height: 0;
       }
-      .phone-warning strong { color: var(--danger); }
-      .phone-warning-dismiss {
-        float: right;
-        background: none;
-        border: none;
-        color: #999;
-        font-size: 1.1rem;
-        cursor: pointer;
-        padding: 0 0 0 8px;
-        font-weight: bold;
+
+      /* === HEADER === */
+      .header {
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 24px;
+      }
+      .brand { display: flex; align-items: center; gap: 14px; }
+      .brand-lockup { display: flex; flex-direction: column; gap: 2px; line-height: 1; }
+      .brand-text {
+        font-family: var(--display);
+        font-weight: 800;
+        font-size: 22px;
+        letter-spacing: -0.005em;
+        color: var(--navy);
         line-height: 1;
+        display: flex; align-items: baseline; gap: 6px;
+      }
+      .brand-text .amber-word { color: var(--amber); }
+      .brand-sub {
+        font-family: var(--sans);
+        font-weight: 600;
+        font-size: 9px;
+        text-transform: uppercase;
+        letter-spacing: 0.22em;
+        color: var(--navy-light);
+        margin-top: 4px;
       }
 
-      /* --- RESULTS LIST --- */
-      .results {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-        padding-bottom: 80px;
+      .header-meta { display: flex; align-items: center; gap: 18px; }
+      .clock {
+        text-align: right;
+        font-feature-settings: 'tnum' 1;
+        border-right: 1px solid var(--rule);
+        padding-right: 18px;
       }
+      .clock-time {
+        font-family: var(--display);
+        font-weight: 700;
+        font-size: 26px;
+        line-height: 1;
+        color: var(--navy);
+        letter-spacing: -0.02em;
+      }
+      .clock-date {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+        color: var(--navy-light);
+        margin-top: 6px;
+        font-weight: 600;
+      }
+      .admin-btn {
+        background: transparent;
+        border: 1.5px solid var(--navy);
+        color: var(--navy);
+        padding: 10px 18px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        display: flex; align-items: center; gap: 8px;
+        transition: all 0.15s;
+        font-family: var(--sans);
+      }
+      .admin-btn:hover { background: var(--navy); color: var(--cream); }
+      .admin-btn .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: 0.7; }
+
+      /* === HERO STRIP === */
+      .hero {
+        display: grid;
+        grid-template-columns: 1.3fr 1fr;
+        gap: 28px;
+        align-items: center;
+        padding: 4px 0 18px;
+        border-bottom: 2px solid var(--navy);
+        position: relative;
+      }
+      .hero::after {
+        content: ''; position: absolute;
+        bottom: -2px; left: 0; width: 120px; height: 2px;
+        background: var(--amber);
+      }
+      .greeting {
+        margin: 0;
+        font-family: var(--display);
+        font-weight: 700;
+        font-size: 44px;
+        line-height: 1.0;
+        letter-spacing: -0.025em;
+        color: var(--navy);
+      }
+      .greeting .amber-word { color: var(--amber); }
+      .greeting-sub {
+        margin-top: 10px;
+        font-size: 14px;
+        color: var(--navy-light);
+        letter-spacing: -0.005em;
+        max-width: 460px;
+        line-height: 1.45;
+        font-weight: 500;
+      }
+
+      .counter-pill {
+        display: flex; align-items: stretch; justify-content: flex-end;
+        gap: 0;
+        font-feature-settings: 'tnum' 1;
+      }
+      .counter-num {
+        font-family: var(--display);
+        font-weight: 800;
+        font-size: 84px;
+        line-height: 0.85;
+        color: var(--amber);
+        letter-spacing: -0.045em;
+        text-align: right;
+        padding-right: 14px;
+        border-right: 2px solid var(--navy);
+      }
+      .counter-label {
+        display: flex; flex-direction: column; justify-content: center;
+        text-align: left;
+        padding-left: 14px;
+        gap: 6px;
+      }
+      .counter-label-line1 {
+        font-family: var(--display);
+        font-weight: 700;
+        font-size: 14px;
+        color: var(--navy);
+        line-height: 1.1;
+      }
+      .counter-label-line2 {
+        font-size: 9px;
+        text-transform: uppercase;
+        letter-spacing: 0.2em;
+        color: var(--navy-light);
+        font-weight: 700;
+        display: flex; align-items: center; gap: 6px;
+      }
+      .live-dot {
+        width: 7px; height: 7px;
+        border-radius: 50%;
+        background: var(--in);
+        box-shadow: 0 0 0 0 rgba(47,122,79,0.5);
+        animation: live-pulse 2.2s infinite;
+      }
+      @keyframes live-pulse {
+        0% { box-shadow: 0 0 0 0 rgba(47,122,79,0.5); }
+        70% { box-shadow: 0 0 0 8px rgba(47,122,79,0); }
+        100% { box-shadow: 0 0 0 0 rgba(47,122,79,0); }
+      }
+
+      /* === SEARCH === */
+      .search-wrap { position: relative; }
+      .search-input {
+        width: 100%;
+        background: var(--surface);
+        border: 2px solid var(--navy);
+        border-radius: var(--radius);
+        padding: 20px 60px 20px 60px;
+        font-size: 20px;
+        font-weight: 500;
+        color: var(--navy);
+        outline: none;
+        letter-spacing: -0.01em;
+        transition: all 0.18s;
+        font-family: var(--sans);
+        box-shadow: 4px 4px 0 var(--navy);
+      }
+      .search-input::placeholder { color: var(--ink-soft); font-weight: 400; }
+      .search-input:focus { box-shadow: 4px 4px 0 var(--amber); border-color: var(--navy); }
+      .search-icon {
+        position: absolute;
+        left: 22px; top: 50%;
+        transform: translateY(-50%);
+        color: var(--navy);
+        pointer-events: none;
+        display: flex;
+      }
+      .search-clear {
+        position: absolute;
+        right: 16px; top: 50%;
+        transform: translateY(-50%);
+        width: 32px; height: 32px;
+        border-radius: 50%;
+        background: var(--cream-2);
+        border: none;
+        display: flex; align-items: center; justify-content: center;
+        color: var(--navy);
+        font-size: 13px;
+        transition: all 0.15s;
+      }
+      .search-clear:hover { background: var(--amber); color: var(--navy); }
+
+      /* === RESULTS === */
+      .results-area {
+        min-height: 0;
+        overflow-y: auto;
+        scrollbar-width: thin;
+        scrollbar-color: var(--rule) transparent;
+        padding-right: 4px;
+        margin-right: -4px;
+      }
+      .results-area::-webkit-scrollbar { width: 8px; }
+      .results-area::-webkit-scrollbar-thumb { background: var(--rule); border-radius: 4px; }
+
+      .section-label {
+        font-family: var(--display);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+        font-weight: 700;
+        color: var(--navy);
+        margin: 4px 0 14px;
+        display: flex; align-items: center; gap: 12px;
+        white-space: nowrap;
+      }
+      .section-label::after { content: ''; flex: 1; height: 2px; background: var(--rule); }
+      .section-label .count-chip {
+        background: var(--navy);
+        color: var(--cream);
+        padding: 3px 8px;
+        border-radius: 999px;
+        font-size: 10px;
+        letter-spacing: 0.1em;
+        font-weight: 700;
+      }
+
+      .results-list { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+      .results-list.single { grid-template-columns: 1fr; }
 
       .student-card {
-        background: white;
-        padding: 16px 20px;
-        border-radius: 12px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        background: var(--surface);
+        border: 1.5px solid var(--rule);
+        border-radius: var(--radius);
+        padding: var(--row-pad-y) var(--row-pad-x);
+        display: flex; align-items: center; gap: 14px;
         cursor: pointer;
-        border-left: 6px solid transparent;
-        transition: all 0.2s ease;
+        transition: transform 0.12s ease, box-shadow 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+        position: relative;
+        overflow: hidden;
+        text-align: left;
+        font-family: var(--sans);
+        width: 100%;
       }
+      .student-card:hover { border-color: var(--navy); transform: translateY(-1px); box-shadow: 4px 4px 0 var(--amber); }
+      .student-card:active { transform: scale(0.985); box-shadow: 2px 2px 0 var(--amber); }
+      .student-card.is-in { background: var(--in-soft); border-color: var(--in-soft-2); }
+      .student-card.is-in:hover { border-color: var(--in); box-shadow: 4px 4px 0 var(--in); }
+      .student-card.is-processing { opacity: 0.55; pointer-events: none; }
 
-      .student-card:active { transform: scale(0.98); }
-
-      .student-card.status-in {
-        background: var(--green-soft);
-        border-left: 6px solid var(--green-border);
+      .avatar {
+        width: 42px; height: 42px;
+        border-radius: 50%;
+        flex-shrink: 0;
+        display: flex; align-items: center; justify-content: center;
+        font-family: var(--display);
+        font-weight: 700;
+        font-size: 14px;
+        background: var(--amber);
+        color: var(--navy);
+        letter-spacing: -0.02em;
+        border: 2px solid var(--navy);
       }
+      .student-card.is-in .avatar { background: var(--in); color: var(--cream); border-color: var(--in-deep); }
 
-      .student-info h3 { margin: 0; font-size: 1.1rem; color: #222; }
-      .student-card.status-in .student-info h3 { color: var(--green-text); }
-
-      .student-meta { font-size: 0.9rem; color: #666; margin-top: 4px; }
-      .student-card.status-in .student-meta { color: var(--green-text); opacity: 0.8; }
+      .student-info { flex: 1; min-width: 0; }
+      .student-name {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--navy);
+        letter-spacing: -0.01em;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-family: var(--display);
+      }
+      .student-card.is-in .student-name { color: var(--in-deep); }
+      .student-meta {
+        font-size: 11.5px;
+        color: var(--ink-soft);
+        margin-top: 3px;
+        display: flex; align-items: center; gap: 8px;
+        font-weight: 500;
+        white-space: nowrap;
+      }
+      .student-card.is-in .student-meta { color: var(--in); }
+      .student-meta .sep { width: 3px; height: 3px; border-radius: 50%; background: currentColor; opacity: 0.5; }
+      .student-meta .tutor-tag {
+        font-family: var(--display);
+        font-weight: 700;
+        font-size: 10px;
+        background: var(--cream-2);
+        color: var(--navy);
+        padding: 2px 7px;
+        border-radius: 4px;
+        letter-spacing: 0.04em;
+      }
+      .student-card.is-in .student-meta .tutor-tag { background: var(--in-soft-2); color: var(--in-deep); }
 
       .status-badge {
-        font-size: 0.8rem;
+        font-size: 10px;
         font-weight: 700;
         text-transform: uppercase;
-        padding: 6px 12px;
-        border-radius: 20px;
-        background: #eee;
-        color: #666;
+        letter-spacing: 0.12em;
+        padding: 6px 10px;
+        border-radius: 4px;
+        background: var(--cream-2);
+        color: var(--ink-soft);
+        flex-shrink: 0;
+        display: flex; align-items: center; gap: 6px;
+        font-family: var(--display);
+        white-space: nowrap;
       }
+      .student-card.is-in .status-badge { background: var(--in); color: #fff; }
+      .status-badge .check { width: 10px; height: 10px; }
 
-      .student-card.status-in .status-badge {
-        background: white;
-        color: var(--green-border);
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      /* === IDLE WELCOME (no signed-in roll on the public view) === */
+      .idle-welcome { display: flex; flex-direction: column; gap: 16px; padding-top: 6px; }
+      .idle-welcome-card {
+        background: var(--surface);
+        border: 1.5px solid var(--rule);
+        border-radius: var(--radius);
+        padding: 26px 28px;
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 24px;
+        position: relative;
+        overflow: hidden;
       }
-
-      .card-disabled { opacity: 0.6; pointer-events: none; }
-
-      /* --- SYNC ERROR BANNER --- */
-      .sync-error-banner {
-        display: none;
-        background: #fce8e6;
-        border: 1px solid var(--danger);
-        border-radius: 10px;
-        padding: 10px 16px;
-        margin-bottom: 16px;
-        color: var(--danger);
+      .idle-welcome-card::after {
+        content: '';
+        position: absolute;
+        right: -50px; top: -50px;
+        width: 180px; height: 180px;
+        border-radius: 50%;
+        background: radial-gradient(circle at center, rgba(245,166,35,0.18) 0%, transparent 70%);
+        pointer-events: none;
+      }
+      .idle-headline {
+        font-family: var(--display);
+        font-weight: 700;
+        font-size: 28px;
+        line-height: 1.1;
+        color: var(--navy);
+        letter-spacing: -0.02em;
+        display: flex; flex-direction: column;
+        gap: 4px;
+        position: relative; z-index: 1;
+        white-space: nowrap;
+      }
+      .idle-headline em { color: var(--amber); font-style: normal; }
+      .idle-status-row {
+        display: flex; flex-direction: column;
+        align-items: flex-end;
+        gap: 10px;
+        position: relative; z-index: 1;
+        flex-shrink: 0;
+      }
+      .service-pill {
+        display: inline-flex; align-items: center; gap: 8px;
+        padding: 8px 14px;
+        border-radius: 999px;
+        font-family: var(--display);
+        font-weight: 700;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        background: var(--cream-2);
+        color: var(--navy);
+        white-space: nowrap;
+      }
+      .service-pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--navy-light); }
+      .service-pill.open { background: var(--in); color: var(--cream); }
+      .service-pill.open .dot { background: var(--amber); animation: live-pulse 2.2s infinite; }
+      .service-pill.closed { background: var(--cream-2); color: var(--navy-light); }
+      .service-window {
+        font-size: 11px;
+        color: var(--navy-light);
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
         font-weight: 600;
-        font-size: 0.9rem;
-        text-align: center;
+        font-family: var(--display);
       }
+      .service-window strong { color: var(--navy); font-weight: 700; font-feature-settings: 'tnum' 1; }
 
-      .sync-error-banner.visible { display: block; }
-
-      /* --- TOAST NOTIFICATION --- */
-      #toast {
-        visibility: hidden;
-        min-width: 250px;
-        background-color: #333;
-        color: #fff;
-        text-align: center;
-        border-radius: 50px;
-        padding: 16px;
-        position: fixed;
-        z-index: 1000;
-        left: 50%;
-        bottom: 30px;
-        transform: translateX(-50%);
-        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-        font-weight: 600;
-        opacity: 0;
-        transition: opacity 0.3s, bottom 0.3s;
+      .idle-tiles { display: grid; grid-template-columns: 1fr 1fr 1.2fr; gap: 12px; }
+      .idle-tile {
+        background: var(--surface);
+        border: 1.5px solid var(--rule);
+        border-radius: var(--radius);
+        padding: 22px 24px;
+        display: flex; flex-direction: column;
+        gap: 4px;
+        min-height: 130px;
+        justify-content: flex-end;
+        position: relative;
       }
-
-      #toast.show {
-        visibility: visible;
-        opacity: 1;
-        bottom: 50px;
+      .idle-tile-num {
+        font-family: var(--display);
+        font-weight: 800;
+        font-size: 56px;
+        line-height: 0.9;
+        color: var(--navy);
+        letter-spacing: -0.04em;
+        font-feature-settings: 'tnum' 1;
       }
-
-      #toast.success { background-color: var(--green-border); }
-      #toast.error { background-color: var(--danger); }
-
-      /* --- ADMIN PANEL --- */
-      .admin-panel {
-        display: none;
-        background: white;
-        position: fixed;
-        top: 0; left: 0; right: 0; bottom: 0;
-        z-index: 2000;
-        padding: 20px;
-        overflow-y: auto;
+      .idle-tile-label {
+        font-family: var(--display);
+        font-weight: 700;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.16em;
+        color: var(--navy-light);
+        margin-top: 6px;
       }
-
-      .admin-list-row {
-        padding: 10px 0;
-        border-bottom: 1px solid #eee;
-        display: flex;
-        justify-content: space-between;
+      .idle-tile.featured {
+        background: var(--navy);
+        border-color: var(--navy);
         align-items: center;
-        gap: 12px;
+        justify-content: center;
+        text-align: center;
+      }
+      .idle-tile-tagline {
+        font-family: var(--display);
+        font-weight: 700;
+        font-size: 13px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--amber);
+        line-height: 1.55;
+        white-space: nowrap;
+        margin-top: 8px;
       }
 
       .empty-state {
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        padding: 30px 20px;
+        color: var(--ink-soft);
         text-align: center;
-        color: #888;
-        margin-top: 40px;
+      }
+      .empty-state h3 {
+        font-family: var(--display);
+        font-weight: 700;
+        font-size: 22px;
+        color: var(--navy);
+        margin: 0 0 8px;
+        letter-spacing: -0.015em;
+      }
+      .empty-state p { margin: 0; font-size: 13.5px; max-width: 360px; line-height: 1.5; font-weight: 500; }
+
+      /* === FOOTER STRIP === */
+      .footer {
+        display: flex; align-items: center; justify-content: space-between;
+        font-size: 11px;
+        color: var(--navy-light);
+        border-top: 1px solid var(--rule);
+        padding-top: 12px;
+        letter-spacing: 0.01em;
+        font-weight: 500;
+      }
+      .footer-tagline {
+        font-family: var(--display);
+        font-weight: 600;
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.22em;
+        color: var(--navy);
+        display: flex; align-items: center; gap: 10px;
+      }
+      .footer-tagline .dot { width: 4px; height: 4px; border-radius: 50%; background: var(--amber); }
+
+      .phone-pill {
+        display: inline-flex; align-items: center; gap: 8px;
+        padding: 6px 12px;
+        background: var(--surface);
+        border: 1.5px solid var(--danger);
+        border-radius: 999px;
+        color: var(--danger);
+        font-weight: 600;
+        font-size: 11px;
+        font-family: var(--sans);
+      }
+      .phone-pill svg { width: 12px; height: 12px; }
+
+      .footer-right { display: flex; align-items: center; gap: 18px; }
+
+      /* === TOAST === */
+      .toast-stack {
+        position: absolute;
+        bottom: 80px; left: 50%;
+        transform: translateX(-50%);
+        z-index: 50;
+        display: flex; flex-direction: column;
+        align-items: center; gap: 8px;
+        pointer-events: none;
+      }
+      .toast {
+        background: var(--navy);
+        color: var(--cream);
+        padding: 12px 22px;
+        border-radius: 999px;
+        font-size: 14px;
+        font-weight: 600;
+        letter-spacing: -0.005em;
+        box-shadow: 0 16px 40px -12px rgba(0,0,0,0.4);
+        display: flex; align-items: center; gap: 10px;
+        animation: toast-in 0.3s ease;
+        font-family: var(--sans);
+      }
+      .toast.success { background: var(--in-deep); }
+      .toast.error { background: var(--danger); }
+      .toast.exiting { animation: toast-out 0.25s ease forwards; }
+      @keyframes toast-in { from { transform: translateY(12px) scale(0.95); } to { transform: none; } }
+      @keyframes toast-out { to { opacity: 0; transform: translateY(-8px); } }
+
+      /* === SIGN-IN CONFIRMATION BURST === */
+      .burst {
+        position: absolute; inset: 0;
+        display: flex; align-items: center; justify-content: center;
+        pointer-events: none;
+        z-index: 100;
+      }
+      .burst-card {
+        background: var(--surface);
+        border-radius: 24px;
+        padding: 36px 56px;
+        text-align: center;
+        border: 3px solid var(--navy);
+        box-shadow: 8px 8px 0 var(--amber);
+        animation: burst-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        position: relative;
+        overflow: hidden;
+        min-width: 380px;
+      }
+      .burst-card.exit { animation: burst-out 0.3s ease forwards; }
+      .burst-rays {
+        position: absolute;
+        top: 50%; left: 50%;
+        width: 400px; height: 400px;
+        transform: translate(-50%, -50%);
+        pointer-events: none;
+      }
+      .burst-rays circle { fill: none; stroke-width: 2.5; opacity: 0; animation: ring-out 0.9s ease-out forwards; }
+      .burst-rays circle:nth-child(1) { stroke: var(--amber); }
+      .burst-rays circle:nth-child(2) { animation-delay: 0.12s; stroke: var(--amber-light); }
+      .burst-rays circle:nth-child(3) { animation-delay: 0.24s; stroke: var(--cream-3); }
+      @keyframes ring-out {
+        0% { r: 30; opacity: 0.9; stroke-width: 3; }
+        100% { r: 200; opacity: 0; stroke-width: 0.5; }
+      }
+      .burst-check {
+        width: 78px; height: 78px;
+        margin: 0 auto 16px;
+        border-radius: 50%;
+        background: var(--in);
+        display: flex; align-items: center; justify-content: center;
+        position: relative; z-index: 2;
+        border: 3px solid var(--in-deep);
+      }
+      .burst-check.out { background: var(--amber); border-color: var(--navy); }
+      .burst-check svg { color: #fff; }
+      .burst-check.out svg { color: var(--navy); }
+      .burst-action {
+        font-family: var(--display);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.22em;
+        color: var(--ink-soft);
+        position: relative; z-index: 2;
+        margin-bottom: 6px;
+        font-weight: 700;
+      }
+      .burst-name {
+        font-family: var(--display);
+        font-weight: 800;
+        font-size: 32px;
+        color: var(--navy);
+        letter-spacing: -0.025em;
+        position: relative; z-index: 2;
+        line-height: 1.05;
+      }
+      .burst-meta { font-size: 13px; color: var(--ink-soft); margin-top: 8px; position: relative; z-index: 2; font-weight: 500; }
+      .burst-tagline {
+        font-family: var(--display);
+        font-weight: 600;
+        font-size: 9px;
+        text-transform: uppercase;
+        letter-spacing: 0.22em;
+        margin-top: 16px;
+        color: var(--amber);
+        position: relative; z-index: 2;
+      }
+      @keyframes burst-in { from { transform: scale(0.85); } to { transform: none; } }
+      @keyframes burst-out { to { opacity: 0; transform: scale(0.95); } }
+
+      /* === ADMIN PANEL === */
+      .admin-overlay {
+        position: absolute; inset: 0;
+        background: rgba(10, 14, 22, 0.6);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        z-index: 200;
+        display: flex; align-items: center; justify-content: center;
+        padding: 30px;
+      }
+      .admin-modal {
+        background: var(--cream);
+        border-radius: 20px;
+        width: 100%; height: 100%;
+        max-width: 1080px;
+        display: flex; flex-direction: column;
+        overflow: hidden;
+        box-shadow: 0 40px 80px -20px rgba(0,0,0,0.5);
+        animation: modal-in 0.3s cubic-bezier(0.34, 1.2, 0.64, 1) forwards;
+        border: 2px solid var(--navy);
+      }
+      @keyframes modal-in { from { transform: translateY(20px) scale(0.98); } to { transform: none; } }
+
+      .admin-header {
+        padding: 18px 26px;
+        border-bottom: 2px solid var(--navy);
+        display: flex; align-items: center; justify-content: space-between;
+        background: var(--surface);
+      }
+      .admin-title { font-family: var(--display); font-weight: 800; font-size: 22px; color: var(--navy); letter-spacing: -0.015em; }
+      .admin-title .amber-word { color: var(--amber); }
+      .admin-title-sub {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+        color: var(--navy-light);
+        margin-top: 4px;
+        font-weight: 700;
+        font-family: var(--display);
+      }
+      .admin-close {
+        background: var(--navy);
+        border: none;
+        width: 38px; height: 38px;
+        border-radius: 50%;
+        color: var(--cream);
+        font-size: 16px;
+        display: flex; align-items: center; justify-content: center;
+        font-weight: 600;
+      }
+      .admin-close:hover { background: var(--amber); color: var(--navy); }
+
+      .admin-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 280px 1fr; }
+      .admin-side {
+        background: var(--surface-warm);
+        border-right: 1px solid var(--rule);
+        padding: 22px 22px;
+        display: flex; flex-direction: column;
+        gap: 18px;
+        overflow-y: auto;
+      }
+      .admin-stat {
+        display: flex; flex-direction: column; gap: 4px;
+        padding: 14px 16px;
+        border-radius: var(--radius);
+        background: var(--surface);
+        border: 1px solid var(--rule);
+      }
+      .admin-stat.featured { background: var(--navy); border-color: var(--navy); }
+      .admin-stat.featured .admin-stat-num { color: var(--amber); }
+      .admin-stat.featured .admin-stat-label { color: var(--cream-2); }
+      .admin-stat-num {
+        font-family: var(--display);
+        font-weight: 800;
+        font-size: 48px;
+        line-height: 0.9;
+        color: var(--navy);
+        letter-spacing: -0.035em;
+      }
+      .admin-stat-num.green { color: var(--in-deep); }
+      .admin-stat-num.warn { color: var(--danger); }
+      .admin-stat-label {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+        color: var(--navy-light);
+        font-weight: 700;
+        font-family: var(--display);
+        margin-top: 6px;
+      }
+      .admin-side-actions { display: flex; flex-direction: column; gap: 8px; margin-top: auto; }
+      .admin-side-action {
+        background: var(--surface);
+        border: 1.5px solid var(--rule);
+        border-radius: 10px;
+        padding: 11px 14px;
+        text-align: left;
+        font-size: 12.5px;
+        font-weight: 600;
+        color: var(--navy);
+        display: flex; align-items: center; justify-content: space-between;
+        transition: all 0.15s;
+        font-family: var(--sans);
+      }
+      .admin-side-action:hover { border-color: var(--navy); }
+      .admin-side-action:disabled { opacity: 0.45; cursor: default; }
+      .admin-side-action.danger { color: var(--danger); border-color: rgba(181, 57, 43, 0.3); }
+      .admin-side-action.danger:hover:not(:disabled) { background: var(--danger-soft); border-color: var(--danger); }
+
+      .admin-main {
+        padding: 22px 26px;
+        overflow-y: auto;
+        display: flex; flex-direction: column; gap: 18px;
+        background: var(--cream);
+      }
+      .admin-tabs { display: flex; gap: 0; border-bottom: 2px solid var(--rule); margin-bottom: 4px; }
+      .admin-tab {
+        background: transparent;
+        border: none;
+        padding: 10px 18px;
+        font-size: 12.5px;
+        font-weight: 700;
+        color: var(--navy-light);
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        border-bottom: 3px solid transparent;
+        margin-bottom: -2px;
+        transition: all 0.15s;
+        font-family: var(--display);
+      }
+      .admin-tab.active { color: var(--navy); border-bottom-color: var(--amber); }
+      .admin-tab .count {
+        display: inline-flex; align-items: center;
+        background: var(--cream-2);
+        color: var(--navy);
+        font-size: 10px;
+        padding: 2px 7px;
+        border-radius: 999px;
+        margin-left: 6px;
+        font-weight: 700;
+      }
+      .admin-tab .count.warn { background: var(--danger-soft); color: var(--danger); }
+      .admin-tab.active .count { background: var(--amber); color: var(--navy); }
+
+      .admin-list { display: flex; flex-direction: column; gap: 4px; }
+      .admin-row {
+        display: grid;
+        grid-template-columns: 36px 1fr auto auto;
+        align-items: center;
+        gap: 14px;
+        padding: 12px 4px;
+        border-bottom: 1px solid var(--rule-soft);
+      }
+      .admin-row:last-child { border-bottom: none; }
+      .admin-row .avatar { width: 36px; height: 36px; font-size: 12px; border-width: 1.5px; }
+      .admin-row-name { font-size: 14px; font-weight: 600; color: var(--navy); letter-spacing: -0.005em; font-family: var(--display); }
+      .admin-row-meta { font-size: 11.5px; color: var(--ink-soft); margin-top: 2px; font-weight: 500; }
+      .admin-row-time { font-feature-settings: 'tnum' 1; font-size: 13px; color: var(--navy); font-weight: 600; font-family: var(--display); }
+      .admin-row-action {
+        background: transparent;
+        border: 1.5px solid var(--rule);
+        border-radius: 8px;
+        padding: 6px 12px;
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--navy);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        font-family: var(--display);
+      }
+      .admin-row-action:hover { border-color: var(--navy); }
+      .admin-row-action.retry { background: var(--amber); color: var(--navy); border-color: var(--amber); }
+      .admin-row-action.retry:hover { background: var(--navy); color: var(--amber); border-color: var(--navy); }
+      .admin-rank-label { font-size: 10px; color: var(--navy-light); text-transform: uppercase; letter-spacing: 0.12em; font-weight: 700; font-family: var(--display); }
+      .admin-main::-webkit-scrollbar { width: 8px; }
+      .admin-main::-webkit-scrollbar-thumb { background: var(--rule); border-radius: 4px; }
+
+      /* Tab content swaps inside the already-open modal — only this fades. */
+      .admin-content { display: flex; flex-direction: column; }
+      .admin-tabpane { display: flex; flex-direction: column; gap: 18px; }
+      .admin-tabpane.fade { animation: admin-fade 0.2s ease; }
+      @keyframes admin-fade {
+        from { opacity: 0; transform: translateY(4px); }
+        to { opacity: 1; transform: none; }
       }
 
-      .hidden { display: none; }
+      /* === PIN PAD === */
+      .pin-modal {
+        background: var(--cream);
+        border-radius: 24px;
+        padding: 30px;
+        width: 360px;
+        border: 2px solid var(--navy);
+        box-shadow: 8px 8px 0 var(--amber), 0 40px 80px -20px rgba(0,0,0,0.4);
+        animation: modal-in 0.3s cubic-bezier(0.34, 1.2, 0.64, 1) forwards;
+      }
+      .pin-title { font-family: var(--display); font-weight: 800; font-size: 24px; color: var(--navy); text-align: center; margin-bottom: 4px; letter-spacing: -0.02em; }
+      .pin-sub {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+        color: var(--navy-light);
+        text-align: center;
+        margin-bottom: 24px;
+        font-weight: 700;
+        font-family: var(--display);
+      }
+      .pin-dots { display: flex; justify-content: center; gap: 14px; margin-bottom: 24px; }
+      .pin-dot { width: 14px; height: 14px; border-radius: 50%; background: var(--surface); border: 2px solid var(--rule); transition: all 0.15s; }
+      .pin-dot.filled { background: var(--navy); border-color: var(--navy); transform: scale(1.1); }
+      .pin-dot.error { background: var(--danger); border-color: var(--danger); animation: shake 0.3s; }
+      @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+
+      .pin-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+      .pin-key {
+        height: 54px;
+        background: var(--surface);
+        border: 1.5px solid var(--rule);
+        border-radius: 12px;
+        font-family: var(--display);
+        font-weight: 700;
+        font-size: 22px;
+        color: var(--navy);
+        transition: all 0.1s;
+      }
+      .pin-key:hover { background: var(--amber); border-color: var(--amber); }
+      .pin-key:active { transform: scale(0.95); }
+      .pin-key.action { font-size: 12px; color: var(--navy-light); text-transform: uppercase; letter-spacing: 0.06em; }
+      .pin-key.action.cancel { color: var(--danger); }
+
+      /* === SYNC BANNER (inside admin Failed Sync tab) === */
+      .sync-banner {
+        background: var(--danger-soft);
+        border: 1.5px solid var(--danger);
+        color: var(--danger);
+        padding: 9px 14px;
+        border-radius: 10px;
+        font-size: 12px;
+        font-weight: 600;
+        display: flex; align-items: center; gap: 10px;
+      }
+      .sync-banner svg { flex-shrink: 0; }
+
+      /* === DENSITY VARIANTS === */
+      .kiosk.density-compact { --row-pad-y: 11px; --row-pad-x: 14px; }
+      .kiosk.density-spacious { --row-pad-y: 20px; --row-pad-x: 24px; }
     </style>
   </head>
 
   <body>
-    <div class="app" id="mainApp">
-      <div class="header-card">
-        <h1>Breakfast Club</h1>
-        <div class="header-actions">
-          <button class="btn-ghost" id="btnRefresh">Refresh</button>
-          <button class="btn-primary" id="btnAdmin">Admin</button>
+    <div class="kiosk density-spacious" id="kiosk">
+      <div class="mood">
+        <div class="mood-sun"></div>
+        <div class="mood-rays" id="moodRays"></div>
+      </div>
+
+      <div class="kiosk-inner">
+        <!-- HEADER -->
+        <div class="header">
+          <div class="brand">
+            <span id="brandSun"></span>
+            <div class="brand-lockup">
+              <div class="brand-text">
+                <span>RISE</span>
+                <span style="font-size:14px">AND</span>
+                <span class="amber-word">SHINE</span>
+              </div>
+              <div class="brand-sub">School Breakfast Club</div>
+            </div>
+          </div>
+          <div class="header-meta">
+            <div class="clock">
+              <div class="clock-time" id="clockTime"></div>
+              <div class="clock-date" id="clockDate"></div>
+            </div>
+            <button class="admin-btn" id="staffBtn"><span class="dot"></span>Staff</button>
+          </div>
+        </div>
+
+        <!-- HERO -->
+        <div class="hero">
+          <div>
+            <h1 class="greeting" id="greeting"></h1>
+            <div class="greeting-sub" id="greetingSub"></div>
+          </div>
+          <div class="counter-pill">
+            <div class="counter-num" id="counterNum">0</div>
+            <div class="counter-label">
+              <div class="counter-label-line1">Signed In<br>This Morning</div>
+              <div class="counter-label-line2"><span class="live-dot"></span>Live</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SEARCH + RESULTS -->
+        <div class="results-area">
+          <div class="search-wrap">
+            <span class="search-icon">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"></circle>
+                <path d="m21 21-4.3-4.3"></path>
+              </svg>
+            </span>
+            <input class="search-input" id="searchInput" type="text" placeholder="Start typing your name…" autocomplete="off" spellcheck="false">
+            <button class="search-clear" id="searchClear" aria-label="Clear" style="display:none">✕</button>
+          </div>
+          <div style="height:18px"></div>
+          <div id="resultsContent"></div>
+        </div>
+
+        <!-- FOOTER -->
+        <div class="footer">
+          <div class="footer-tagline">
+            Good Food <span class="dot"></span> Good Start <span class="dot"></span> Great Day
+          </div>
+          <div class="footer-right">
+            <div class="phone-pill" id="retryPill" style="display:none">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 9v4m0 4h.01"></path><circle cx="12" cy="12" r="10"></circle></svg>
+              <span id="retryCount"></span>
+            </div>
+            <div class="phone-pill">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                <rect x="7" y="2" width="10" height="20" rx="2"></rect>
+                <line x1="11" y1="18" x2="13" y2="18"></line>
+              </svg>
+              Phones away — staff will confiscate
+            </div>
+          </div>
         </div>
       </div>
 
-      <div class="stats-bar">
-        <span><span class="live-indicator"></span>Live Counter</span>
-        <span id="counterDisplay">0 Students In</span>
-      </div>
-
-      <!-- Persistent error banner for failed syncs -->
-      <div class="sync-error-banner" id="syncErrorBanner">
-        ⚠ Some sign-ins failed to save. Staff: check Admin panel to retry.
-      </div>
-
-      <div class="search-container">
-        <div class="search-input-wrapper">
-          <input type="text" id="searchInput" placeholder="Start typing name..." autocomplete="off">
-          <div class="clear-search" id="clearSearch">✕</div>
-        </div>
-      </div>
-
-      <div class="phone-warning" id="phoneWarning" role="note" aria-label="Phone use warning">
-        <button class="phone-warning-dismiss" id="dismissPhoneWarning" aria-label="Dismiss">✕</button>
-        <strong>Phone reminder:</strong> Phones must not be out on display. If a phone is seen by staff, it will be confiscated without warning and an after-school detention will be set.
-      </div>
-
-      <div id="results" class="results">
-        <div class="empty-state">
-          Type a name above to find a student.<br><br>
-          <small>Green cards are signed in.</small>
-        </div>
-      </div>
-    </div>
-
-    <div id="toast">Message here</div>
-
-    <div id="adminPanel" class="admin-panel">
-      <div class="header-card">
-        <h1>Admin View</h1>
-        <button class="btn-primary" id="btnCloseAdmin">Close</button>
-      </div>
-
-      <div style="margin-bottom: 20px; font-weight:bold; color:var(--accent);">
-        Currently Signed In: <span id="adminCount">0</span>
-      </div>
-
-      <div id="adminList">Loading...</div>
-
-      <div id="failedSyncSection" class="hidden" style="margin-top:30px; border-top:2px solid red; padding-top:10px;">
-        <h3 style="color:red">Failed Sign-ins (Retry Needed)</h3>
-        <div id="failedList"></div>
-      </div>
+      <div id="burstRoot"></div>
+      <div class="toast-stack" id="toastStack"></div>
+      <div id="pinRoot"></div>
+      <div id="adminRoot"></div>
     </div>
 
     <script>
-      // --- STATE MANAGEMENT ---
-      let allStudents = [];
-      let statusById = {};        // map: id -> 'IN' | 'OUT'
-      let searchTimer = null;
-      let updatingIds = new Set();
-      let failedOps = loadFailedOps_();
-      let lastActionTime = 0;     // Timestamp of last sign action (prevents poll overlap)
+      // =====================================================================
+      // Rise and Shine kiosk — vanilla JS implementation of the Claude Design
+      // mock, wired to the real Apps Script backend (Code.js).
+      // =====================================================================
 
-      // --- FAILED OPS PERSISTENCE ---
+      // --- CONFIG ---
+      var SERVICE_START = 8 * 60 + 0;   // 08:00 — breakfast service opens
+      var SERVICE_END   = 8 * 60 + 37;  // 08:37 — service closes
+      var MAX_RETRIES = 2;
+
+      // --- STATE ---
+      var allStudents = [];
+      var statusById = {};          // id -> 'IN' | 'OUT'
+      var signInTimes = {};         // id -> ms (this session only — server stores no per-student time)
+      var updatingIds = new Set();  // ids with an in-flight RPC
+      var failedOps = loadFailedOps_();
+      var lastActionTime = 0;
+      var searchTimer = null;
+      var query = '';
+
+      var adminOpen = false;
+      var adminTab = 'in';
+      var pinIsOpen = false;
+      var pinDigits = '';
+      var pinPending = false;
+
+      // --- FAILED OPS PERSISTENCE (survives a kiosk refresh) ---
       function loadFailedOps_() {
-        try {
-          const raw = localStorage.getItem('bc_failedOps');
-          return raw ? JSON.parse(raw) : [];
-        } catch (e) { return []; }
+        try { var raw = localStorage.getItem('bc_failedOps'); return raw ? JSON.parse(raw) : []; }
+        catch (e) { return []; }
       }
-
       function saveFailedOps_() {
         try { localStorage.setItem('bc_failedOps', JSON.stringify(failedOps)); } catch (e) {}
       }
 
-      // --- DOM ELEMENTS ---
-      const els = {
-        input: document.getElementById('searchInput'),
-        clearBtn: document.getElementById('clearSearch'),
-        results: document.getElementById('results'),
-        counter: document.getElementById('counterDisplay'),
-        toast: document.getElementById('toast'),
-        adminPanel: document.getElementById('adminPanel'),
-        adminList: document.getElementById('adminList'),
-        mainApp: document.getElementById('mainApp'),
-        failedSection: document.getElementById('failedSyncSection'),
-        failedList: document.getElementById('failedList'),
-        adminCount: document.getElementById('adminCount'),
-        syncBanner: document.getElementById('syncErrorBanner')
-      };
+      // --- TINY DOM HELPERS ---
+      function $(id) { return document.getElementById(id); }
+      function el(tag, cls, txt) {
+        var e = document.createElement(tag);
+        if (cls) e.className = cls;
+        if (txt != null) e.textContent = txt;
+        return e;
+      }
 
-      // --- INITIALISATION ---
-      window.addEventListener('load', () => {
-        loadData();
-        els.input.focus();
+      // --- FORMAT / DATA HELPERS ---
+      function initials(name) {
+        var parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+        if (parts.length === 0) return '?';
+        if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+        return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+      }
+      function foldAccents(str) { return str.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
+      function formatTime(d) { return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); }
+      function formatDate(d) { return d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase(); }
+      function greetingFor(h) {
+        if (h < 6) return ['Early', 'start'];
+        if (h < 9) return ['Good', 'morning'];
+        if (h < 12) return ['Late', 'morning'];
+        return ['Hello', 'there'];
+      }
+      function countIn() { var n = 0; for (var k in statusById) { if (statusById[k] === 'IN') n++; } return n; }
+      function totalVisits() { return allStudents.reduce(function (a, s) { return a + (s.visits || 0); }, 0); }
+      function pad2(n) { return (n < 10 ? '0' : '') + n; }
+      function fmtMins(m) { return pad2(Math.floor(m / 60)) + ':' + pad2(m % 60); }
+      function serviceWindowStr() { return fmtMins(SERVICE_START) + ' – ' + fmtMins(SERVICE_END); }
 
-        // Restore failed ops UI from localStorage
-        if (failedOps.length > 0) {
-          els.syncBanner.classList.add('visible');
-          els.failedSection.classList.remove('hidden');
-          renderFailedList();
+      // --- STATIC SVG MARKUP (no user data — innerHTML is safe) ---
+      function sunMark(size) {
+        var h = Math.round(size * 0.65);
+        return '<svg width="' + size + '" height="' + h + '" viewBox="0 0 100 65" aria-hidden="true">' +
+          '<g>' +
+          '<rect x="6" y="22" width="4" height="14" rx="2" fill="#25354A" transform="rotate(-58 8 29)"/>' +
+          '<rect x="18" y="14" width="4" height="14" rx="2" fill="#F5A623" transform="rotate(-34 20 21)"/>' +
+          '<rect x="32" y="8" width="4" height="14" rx="2" fill="#25354A" transform="rotate(-16 34 15)"/>' +
+          '<rect x="48" y="4" width="4" height="14" rx="2" fill="#F5A623"/>' +
+          '<rect x="64" y="8" width="4" height="14" rx="2" fill="#25354A" transform="rotate(16 66 15)"/>' +
+          '<rect x="78" y="14" width="4" height="14" rx="2" fill="#F5A623" transform="rotate(34 80 21)"/>' +
+          '<rect x="90" y="22" width="4" height="14" rx="2" fill="#25354A" transform="rotate(58 92 29)"/>' +
+          '</g>' +
+          '<path d="M 24 58 A 26 26 0 0 1 76 58 Z" fill="#F5A623"/>' +
+          '<rect x="14" y="58" width="72" height="3" rx="1.5" fill="#25354A"/>' +
+          '</svg>';
+      }
+      function moodRaysSVG() {
+        var r = '';
+        for (var i = 0; i < 12; i++) {
+          var a = (i / 12) * 360;
+          r += '<rect x="298" y="60" width="4" height="60" rx="2" fill="' + (i % 2 === 0 ? '#F5A623' : '#F5C15E') +
+               '" opacity="0.6" transform="rotate(' + a + ' 300 300)"/>';
+        }
+        return '<svg viewBox="0 0 600 600" style="width:100%;height:100%">' + r + '</svg>';
+      }
+      var ICON_CHECK = '<svg class="check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8l3 3 7-7"/></svg>';
+      var ICON_ARROW = '<svg class="check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M3 8h10M9 4l4 4-4 4"/></svg>';
+      var ICON_BURST_CHECK = '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>';
+      var ICON_BURST_OUT = '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/></svg>';
+      var ICON_WARN_TRI = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>';
+      var BURST_RAYS = '<svg class="burst-rays" viewBox="-200 -200 400 400"><circle cx="0" cy="0" r="30"/><circle cx="0" cy="0" r="30"/><circle cx="0" cy="0" r="30"/></svg>';
+
+      // =====================================================================
+      // RENDER
+      // =====================================================================
+      function renderClock() {
+        var d = new Date();
+        $('clockTime').textContent = formatTime(d);
+        $('clockDate').textContent = formatDate(d);
+      }
+
+      function renderHero() {
+        var c = countIn();
+        var g = greetingFor(new Date().getHours());
+        $('greeting').innerHTML = g[0] + ' <span class="amber-word"></span>.';
+        $('greeting').querySelector('.amber-word').textContent = g[1];
+
+        var sub = c === 0
+          ? 'Be the first in. Tap your name once it appears below.'
+          : c < 5
+            ? c + ' early bird' + (c === 1 ? ' has' : 's have') + ' kicked off the day. Find your name to join them.'
+            : c + ' students fed and ready. Keep the queue moving — type your name to sign in.';
+        $('greetingSub').textContent = sub;
+        $('counterNum').textContent = c;
+      }
+
+      function renderResults() {
+        var box = $('resultsContent');
+        box.innerHTML = '';
+        box.appendChild(query.trim().length >= 2 ? buildMatches() : buildIdle());
+      }
+
+      function buildIdle() {
+        var frag = document.createDocumentFragment();
+        var c = countIn();
+        var d = new Date();
+        var mins = d.getHours() * 60 + d.getMinutes();
+        var isOpen = mins >= SERVICE_START && mins <= SERVICE_END;
+        var left = Math.max(0, SERVICE_END - mins);
+        var headline = c === 0
+          ? ['Doors are open.', 'Be the first in.']
+          : isOpen
+            ? ['Breakfast is on.', 'Sign in to grab yours.']
+            : ['Welcome.', 'Sign in to mark attendance.'];
+
+        var wrap = el('div', 'idle-welcome');
+
+        var card = el('div', 'idle-welcome-card');
+        var hl = el('div', 'idle-headline');
+        hl.appendChild(el('span', null, headline[0]));
+        hl.appendChild(el('em', null, headline[1]));
+        card.appendChild(hl);
+
+        var statusRow = el('div', 'idle-status-row');
+        var pill = el('div', 'service-pill ' + (isOpen ? 'open' : 'closed'));
+        pill.appendChild(el('span', 'dot'));
+        pill.appendChild(document.createTextNode(isOpen ? ('Open · ' + left + ' min left') : 'Closed'));
+        statusRow.appendChild(pill);
+        var sw = el('div', 'service-window');
+        sw.appendChild(document.createTextNode('Service window '));
+        sw.appendChild(el('strong', null, serviceWindowStr()));
+        statusRow.appendChild(sw);
+        card.appendChild(statusRow);
+        wrap.appendChild(card);
+
+        var tiles = el('div', 'idle-tiles');
+        tiles.appendChild(idleTile(String(c), 'In this morning'));
+        tiles.appendChild(idleTile(String(totalVisits()), 'Visits this term'));
+        var feat = el('div', 'idle-tile featured');
+        feat.innerHTML = sunMark(42) + '<div class="idle-tile-tagline">Good Food<br>Good Start<br>Great Day</div>';
+        tiles.appendChild(feat);
+        wrap.appendChild(tiles);
+
+        frag.appendChild(wrap);
+        return frag;
+      }
+      function idleTile(num, label) {
+        var t = el('div', 'idle-tile');
+        t.appendChild(el('div', 'idle-tile-num', num));
+        t.appendChild(el('div', 'idle-tile-label', label));
+        return t;
+      }
+
+      function buildMatches() {
+        var frag = document.createDocumentFragment();
+        var q = foldAccents(query.trim().toLowerCase());
+        var matches = allStudents
+          .filter(function (s) { return foldAccents((s.displayName || '').toLowerCase()).indexOf(q) >= 0; })
+          .slice(0, 12);
+
+        if (matches.length === 0) {
+          frag.appendChild(el('div', 'section-label', 'No matches'));
+          var es = el('div', 'empty-state');
+          es.appendChild(el('h3', null, "We couldn't find that name."));
+          es.appendChild(el('p', null, 'Check your spelling, or ask a staff member to add you to the roster.'));
+          frag.appendChild(es);
+          return frag;
         }
 
-        // Polling every 15s — skips if mid-update or within 5s of a sign action
-        setInterval(() => {
-          const cooldownElapsed = Date.now() - lastActionTime > 5000;
-          if (updatingIds.size === 0 && cooldownElapsed) {
-            loadData(true);
-          }
-        }, 15000);
-      });
+        // Push already-signed-in students below not-yet-in ones so a returning
+        // student isn't tapped (and signed back out) by accident.
+        matches.sort(function (a, b) {
+          var ai = statusById[a.studentId] === 'IN' ? 1 : 0;
+          var bi = statusById[b.studentId] === 'IN' ? 1 : 0;
+          return ai - bi;
+        });
 
-      els.input.addEventListener('input', (e) => {
-        els.clearBtn.style.visibility = e.target.value ? 'visible' : 'hidden';
-        debounceSearch();
-      });
+        var label = el('div', 'section-label');
+        label.appendChild(document.createTextNode(matches.length + ' match' + (matches.length === 1 ? '' : 'es') + ' '));
+        label.appendChild(el('span', 'count-chip', String(matches.length)));
+        frag.appendChild(label);
 
-      // Escape key clears search — ready for next student
-      els.input.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') resetSearchUI();
-      });
-
-      els.clearBtn.addEventListener('click', () => {
-        resetSearchUI();
-      });
-
-      document.getElementById('btnRefresh').addEventListener('click', () => loadData());
-
-      // Phone warning dismiss
-      if (localStorage.getItem('bc_phoneWarningDismissed')) {
-        document.getElementById('phoneWarning').style.display = 'none';
+        var list = el('div', 'results-list' + (matches.length === 1 ? ' single' : ''));
+        matches.forEach(function (s) { list.appendChild(buildCard(s)); });
+        frag.appendChild(list);
+        return frag;
       }
-      document.getElementById('dismissPhoneWarning').addEventListener('click', () => {
-        document.getElementById('phoneWarning').style.display = 'none';
-        try { localStorage.setItem('bc_phoneWarningDismissed', '1'); } catch (e) {}
-      });
 
-      document.getElementById('btnAdmin').addEventListener('click', openAdmin);
-      document.getElementById('btnCloseAdmin').addEventListener('click', () => {
-        els.adminPanel.style.display = 'none';
-        els.mainApp.style.display = 'block';
-        els.input.focus();
-      });
+      function buildCard(s) {
+        var id = s.studentId;
+        var isIn = statusById[id] === 'IN';
+        var proc = updatingIds.has(id);
 
-      // --- DATA LOADING ---
-      function loadData(isBackground = false) {
-        if (!isBackground) showToast('Syncing data...', 'neutral');
+        var card = el('button', 'student-card' + (isIn ? ' is-in' : '') + (proc ? ' is-processing' : ''));
+        card.appendChild(el('div', 'avatar', initials(s.displayName)));
 
+        var info = el('div', 'student-info');
+        info.appendChild(el('div', 'student-name', s.displayName));
+        var meta = el('div', 'student-meta');
+        if (s.tutor) {
+          meta.appendChild(el('span', 'tutor-tag', s.tutor));
+          meta.appendChild(el('span', 'sep'));
+        }
+        if (isIn && signInTimes[id]) {
+          meta.appendChild(el('span', null, 'In at ' + formatTime(new Date(signInTimes[id]))));
+        } else {
+          meta.appendChild(el('span', null, (s.visits || 0) + ' visits'));
+        }
+        info.appendChild(meta);
+        card.appendChild(info);
+
+        var badge = el('div', 'status-badge');
+        badge.innerHTML = isIn ? (ICON_CHECK + 'Signed In') : ('Sign In' + ICON_ARROW);
+        card.appendChild(badge);
+
+        card.addEventListener('click', function () { toggleSign(s); });
+        return card;
+      }
+
+      function renderFooterRetry() {
+        var pill = $('retryPill');
+        if (failedOps.length > 0) {
+          pill.style.display = 'inline-flex';
+          $('retryCount').textContent = failedOps.length + ' need retry';
+        } else {
+          pill.style.display = 'none';
+        }
+      }
+
+      // =====================================================================
+      // DATA LOADING + POLLING
+      // =====================================================================
+      function loadData(isBackground) {
         google.script.run
-          .withSuccessHandler((data) => {
+          .withSuccessHandler(function (data) {
             allStudents = (data && data.students) ? data.students : [];
-
-            // Update statuses unless user is currently toggling that ID
-            allStudents.forEach(s => {
+            allStudents.forEach(function (s) {
               if (!updatingIds.has(s.studentId)) {
                 statusById[s.studentId] = s.status || 'OUT';
               }
             });
-
-            updateCounter();
-
-            if (!isBackground) hideToast();
-
-            // If user is typing, re-run search with fresh data
-            if (els.input.value.length > 0) runSearch();
+            renderHero();
+            renderResults();
+            if (adminOpen) renderAdmin();
           })
-          .withFailureHandler(err => {
+          .withFailureHandler(function (err) {
             console.error(err);
-            if (!isBackground) showToast('Connection failed', 'error');
+            if (!isBackground) pushToast('Connection failed', 'error');
           })
           .getInitialData();
       }
 
-      // --- SEARCH ---
+      // =====================================================================
+      // SEARCH
+      // =====================================================================
       function debounceSearch() {
         if (searchTimer) clearTimeout(searchTimer);
-        searchTimer = setTimeout(runSearch, 150);
+        searchTimer = setTimeout(renderResults, 150);
+      }
+      function resetSearch() {
+        query = '';
+        $('searchInput').value = '';
+        $('searchClear').style.display = 'none';
+        renderResults();
+        focusSearch();
+      }
+      function focusSearch() {
+        var i = $('searchInput');
+        if (i && !adminOpen && !pinIsOpen) i.focus();
       }
 
-      function foldAccents(str) {
-        return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-      }
-
-      function runSearch() {
-        const query = foldAccents(els.input.value.trim().toLowerCase());
-
-        if (query.length < 2) {
-          renderResults([]);
-          return;
-        }
-
-        const matches = allStudents
-          .filter(s => foldAccents((s.displayName || '').toLowerCase()).includes(query))
-          .slice(0, 20);
-
-        renderResults(matches);
-      }
-
-      function renderResults(students) {
-        els.results.innerHTML = '';
-
-        if (students.length === 0 && els.input.value.length > 0) {
-          els.results.innerHTML = '<div class="empty-state">No student found.</div>';
-          return;
-        } else if (students.length === 0) {
-          els.results.innerHTML =
-            '<div class="empty-state">' +
-              'Type a name above.<br><br>' +
-              '<small>Green cards are signed in.</small>' +
-            '</div>';
-          return;
-        }
-
-        students.forEach(s => {
-          const id = s.studentId;
-          const status = statusById[id] || 'OUT';
-          const isProcessing = updatingIds.has(id);
-          const isIn = status === 'IN';
-
-          const card = document.createElement('div');
-          card.className = 'student-card' +
-            (isIn ? ' status-in' : '') +
-            (isProcessing ? ' card-disabled' : '');
-          card.setAttribute('role', 'button');
-          card.setAttribute('tabindex', '0');
-
-          // Build card content using textContent for safety
-          const infoDiv = document.createElement('div');
-          infoDiv.className = 'student-info';
-
-          const nameEl = document.createElement('h3');
-          nameEl.textContent = s.displayName;
-          infoDiv.appendChild(nameEl);
-
-          const metaEl = document.createElement('div');
-          metaEl.className = 'student-meta';
-          metaEl.textContent = s.tutor || '';
-          infoDiv.appendChild(metaEl);
-
-          const badge = document.createElement('div');
-          badge.className = 'status-badge';
-          badge.textContent = isIn ? 'SIGNED IN' : 'OUT';
-
-          card.appendChild(infoDiv);
-          card.appendChild(badge);
-
-          // Click and keyboard support
-          const handler = () => toggleSign(s);
-          card.addEventListener('click', handler);
-          card.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              handler();
-            }
-          });
-
-          els.results.appendChild(card);
-        });
-      }
-
-      // --- ACTION LOGIC ---
-      function resetSearchUI() {
-        els.input.value = '';
-        els.clearBtn.style.visibility = 'hidden';
-        els.input.focus();
-        renderResults([]);
-      }
-
+      // =====================================================================
+      // SIGN IN / OUT (optimistic UI + retry, wired to logSignAction)
+      // =====================================================================
       function toggleSign(student) {
-        const id = student.studentId;
+        var id = student.studentId;
         if (updatingIds.has(id)) return;
 
-        const currentStatus = statusById[id] || 'OUT';
-        const newStatus = currentStatus === 'IN' ? 'OUT' : 'IN';
+        var current = statusById[id] || 'OUT';
+        var next = current === 'IN' ? 'OUT' : 'IN';
 
-        // Optimistic UI
         updatingIds.add(id);
-        statusById[id] = newStatus;
-        lastActionTime = Date.now(); // Delay next poll to prevent flicker
-        updateCounter();
-        runSearch();
+        statusById[id] = next;
+        lastActionTime = Date.now();
+        if (next === 'IN') signInTimes[id] = Date.now();
 
-        showToast(
-          newStatus === 'IN'
-            ? 'Signed IN: ' + student.displayName
-            : 'Signed OUT: ' + student.displayName,
-          'success'
-        );
+        showBurst(student, next);
+        renderHero();
+        renderResults();
 
-        // Clear search after tap — slightly longer window for mistake spotting
-        setTimeout(resetSearchUI, 1000);
+        // Clear the search a beat after the action so the next student can step up.
+        setTimeout(resetSearch, 1400);
 
-        attemptSignAction(student, id, newStatus, currentStatus, 0);
+        attemptSignAction(student, id, next, current, 0);
       }
 
-      const MAX_RETRIES = 2;
-
-      function attemptSignAction(student, id, newStatus, originalStatus, attempt) {
+      function attemptSignAction(student, id, next, original, attempt) {
         function onFail(err) {
           if (err) console.error(err);
-
           if (attempt < MAX_RETRIES) {
-            const delay = 1000 * Math.pow(2, attempt); // 1s, 2s
-            setTimeout(() => attemptSignAction(student, id, newStatus, originalStatus, attempt + 1), delay);
+            var delay = 1000 * Math.pow(2, attempt); // 1s, 2s
+            setTimeout(function () { attemptSignAction(student, id, next, original, attempt + 1); }, delay);
             return;
           }
-
-          // All retries exhausted — revert and queue
+          // Retries exhausted — revert and queue for manual retry.
           updatingIds.delete(id);
-          statusById[id] = originalStatus;
-          updateCounter();
-          runSearch();
-          addToFailedQueue(student, newStatus);
-          showToast('Failed — queued for retry: ' + student.displayName, 'error');
+          statusById[id] = original;
+          if (original !== 'IN') delete signInTimes[id];
+          addToFailedQueue(student, next);
+          renderHero();
+          renderResults();
+          renderFooterRetry();
+          if (adminOpen) renderAdmin();
+          pushToast('Sync failed for ' + student.displayName + ' — queued for retry', 'error');
         }
 
         google.script.run
-          .withSuccessHandler((res) => {
-            if (!res || !res.success) {
-              onFail(null);
-              return;
-            }
+          .withSuccessHandler(function (res) {
+            if (!res || !res.success) { onFail(null); return; }
             updatingIds.delete(id);
+            renderResults();
+            if (adminOpen) renderAdmin();
           })
           .withFailureHandler(onFail)
-          .logSignAction(id, newStatus);
+          .logSignAction(id, next);
       }
 
-      function updateCounter() {
-        const count = Object.values(statusById).filter(s => s === 'IN').length;
-        els.counter.textContent = count + ' Student' + (count === 1 ? '' : 's') + ' In';
-        els.adminCount.textContent = count;
-      }
-
-      // --- TOAST ---
-      let toastTimeout;
-      function showToast(msg, type) {
-        type = type || 'neutral';
-        els.toast.textContent = msg;
-        els.toast.className = type;
-        els.toast.classList.add('show');
-
-        if (toastTimeout) clearTimeout(toastTimeout);
-        toastTimeout = setTimeout(hideToast, 3000);
-      }
-
-      function hideToast() {
-        els.toast.classList.remove('show');
-      }
-
-      // --- ADMIN ---
-      function openAdmin() {
-        const pin = prompt('Enter Admin PIN:');
-        if (!pin) return;
-
-        google.script.run
-          .withSuccessHandler(isValid => {
-            if (isValid) {
-              els.mainApp.style.display = 'none';
-              els.adminPanel.style.display = 'block';
-              loadData(true); // Refresh data so admin sees current state across all devices
-              renderAdminList();
-              updateCounter();
-              renderFailedList();
-            } else {
-              alert('Incorrect PIN');
-            }
-          })
-          .validateAdminPin(pin);
-      }
-
-      function renderAdminList() {
-        const list = allStudents.filter(s => statusById[s.studentId] === 'IN');
-        list.sort((a, b) => (a.displayName || '').localeCompare(b.displayName));
-
-        if (list.length === 0) {
-          els.adminList.innerHTML = '<div class="empty-state">No students currently signed in.</div>';
-          return;
-        }
-
-        els.adminList.innerHTML = '';
-        list.forEach(s => {
-          const row = document.createElement('div');
-          row.className = 'admin-list-row';
-
-          const name = document.createElement('strong');
-          name.textContent = s.displayName;
-
-          const tutor = document.createElement('span');
-          tutor.textContent = s.tutor || '';
-
-          row.appendChild(name);
-          row.appendChild(tutor);
-          els.adminList.appendChild(row);
-        });
-      }
-
-      // --- FAILED OPS (ADMIN RETRY) ---
+      // =====================================================================
+      // FAILED OPS QUEUE
+      // =====================================================================
       function addToFailedQueue(student, intendedStatus) {
-        const key = student.studentId + '__' + intendedStatus;
-        if (failedOps.some(op => op.key === key)) return;
-
+        var key = student.studentId + '__' + intendedStatus;
+        if (failedOps.some(function (o) { return o.key === key; })) return;
         failedOps.push({ key: key, student: student, intendedStatus: intendedStatus, ts: Date.now() });
         saveFailedOps_();
-
-        // Show persistent banner so staff notice even if student has walked away
-        els.syncBanner.classList.add('visible');
-        els.failedSection.classList.remove('hidden');
-        renderFailedList();
-      }
-
-      function renderFailedList() {
-        if (failedOps.length === 0) {
-          els.syncBanner.classList.remove('visible');
-          els.failedSection.classList.add('hidden');
-          els.failedList.innerHTML = '';
-          return;
-        }
-
-        els.failedList.innerHTML = '';
-        failedOps.forEach((op, i) => {
-          const row = document.createElement('div');
-          row.className = 'admin-list-row';
-
-          const label = document.createElement('span');
-          label.textContent = op.student.displayName + ' → ' + op.intendedStatus;
-
-          const btn = document.createElement('button');
-          btn.className = 'btn-ghost';
-          btn.textContent = 'Retry';
-          btn.addEventListener('click', () => retryOp(i));
-
-          row.appendChild(label);
-          row.appendChild(btn);
-          els.failedList.appendChild(row);
-        });
+        renderFooterRetry();
       }
 
       function retryOp(index) {
-        const op = failedOps[index];
+        var op = failedOps[index];
         if (!op) return;
-
-        const id = op.student.studentId;
-        const intendedStatus = op.intendedStatus;
-
+        var id = op.student.studentId;
+        var intended = op.intendedStatus;
         if (updatingIds.has(id)) return;
         updatingIds.add(id);
-
-        showToast('Retrying: ' + op.student.displayName, 'neutral');
+        pushToast('Retrying: ' + op.student.displayName, '');
 
         google.script.run
-          .withSuccessHandler((res) => {
+          .withSuccessHandler(function (res) {
             updatingIds.delete(id);
-
             if (res && res.success) {
-              failedOps.splice(index, 1);
+              var i = failedOps.indexOf(op);
+              if (i >= 0) failedOps.splice(i, 1);
               saveFailedOps_();
-              renderFailedList();
-              showToast('Saved: ' + op.student.displayName, 'success');
+              statusById[id] = intended;
+              if (intended === 'IN' && !signInTimes[id]) signInTimes[id] = Date.now();
+              renderFooterRetry();
+              renderHero();
+              renderResults();
+              if (adminOpen) renderAdmin();
+              pushToast('Saved: ' + op.student.displayName, 'success');
               loadData(true);
             } else {
-              showToast('Still failing: ' + op.student.displayName, 'error');
+              pushToast('Still failing: ' + op.student.displayName, 'error');
+              if (adminOpen) renderAdmin();
             }
           })
-          .withFailureHandler((err) => {
+          .withFailureHandler(function (err) {
             console.error(err);
             updatingIds.delete(id);
-            showToast('Still failing: ' + op.student.displayName, 'error');
+            pushToast('Still failing: ' + op.student.displayName, 'error');
+            if (adminOpen) renderAdmin();
           })
-          .logSignAction(id, intendedStatus);
+          .logSignAction(id, intended);
       }
+
+      // =====================================================================
+      // TOASTS
+      // =====================================================================
+      function pushToast(text, type) {
+        var stack = $('toastStack');
+        var t = el('div', 'toast ' + (type || ''), text);
+        stack.appendChild(t);
+        setTimeout(function () {
+          t.classList.add('exiting');
+          setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 250);
+        }, 2200);
+      }
+
+      // =====================================================================
+      // SIGN-IN BURST
+      // =====================================================================
+      function showBurst(student, newStatus) {
+        var root = $('burstRoot');
+        root.innerHTML = '';
+        var isIn = newStatus === 'IN';
+
+        var burst = el('div', 'burst');
+        var card = el('div', 'burst-card');
+        card.innerHTML =
+          BURST_RAYS +
+          '<div class="burst-check' + (isIn ? '' : ' out') + '">' + (isIn ? ICON_BURST_CHECK : ICON_BURST_OUT) + '</div>' +
+          '<div class="burst-action"></div>' +
+          '<div class="burst-name"></div>' +
+          '<div class="burst-meta"></div>' +
+          (isIn ? '<div class="burst-tagline">Good Food · Good Start · Great Day</div>' : '');
+        burst.appendChild(card);
+        root.appendChild(burst);
+
+        card.querySelector('.burst-action').textContent = isIn ? 'Signed In' : 'Signed Out';
+        card.querySelector('.burst-name').textContent = student.displayName;
+        var meta = 'Tutor ' + (student.tutor || '—');
+        if (isIn) {
+          var v = student.visits || 0;
+          meta += (v === 0) ? ' · First visit!' : ' · Visit #' + (v + 1);
+        }
+        card.querySelector('.burst-meta').textContent = meta;
+
+        setTimeout(function () {
+          card.classList.add('exit');
+          setTimeout(function () { root.innerHTML = ''; }, 300);
+        }, 1700);
+      }
+
+      // =====================================================================
+      // PIN ENTRY (validated server-side via validateAdminPin)
+      // =====================================================================
+      function openPin() {
+        if (adminOpen) return;
+        pinIsOpen = true;
+        pinDigits = '';
+        pinPending = false;
+
+        var overlay = el('div', 'admin-overlay');
+        overlay.addEventListener('click', function (e) { if (e.target === overlay) closePin(); });
+
+        var modal = el('div', 'pin-modal');
+        var sun = el('div');
+        sun.style.cssText = 'display:flex;justify-content:center;margin-bottom:16px';
+        sun.innerHTML = sunMark(42);
+        modal.appendChild(sun);
+        modal.appendChild(el('div', 'pin-title', 'Staff Access'));
+        modal.appendChild(el('div', 'pin-sub', 'Enter 4-digit PIN'));
+
+        var dots = el('div', 'pin-dots');
+        dots.id = 'pinDots';
+        modal.appendChild(dots);
+
+        var pad = el('div', 'pin-pad');
+        ['1', '2', '3', '4', '5', '6', '7', '8', '9'].forEach(function (d) {
+          var b = el('button', 'pin-key', d);
+          b.addEventListener('click', function () { pinPush(d); });
+          pad.appendChild(b);
+        });
+        var cancel = el('button', 'pin-key action cancel', 'Cancel');
+        cancel.addEventListener('click', closePin);
+        pad.appendChild(cancel);
+        var zero = el('button', 'pin-key', '0');
+        zero.addEventListener('click', function () { pinPush('0'); });
+        pad.appendChild(zero);
+        var back = el('button', 'pin-key action', 'Back');
+        back.addEventListener('click', pinBack);
+        pad.appendChild(back);
+        modal.appendChild(pad);
+
+        overlay.appendChild(modal);
+        var root = $('pinRoot');
+        root.innerHTML = '';
+        root.appendChild(overlay);
+        renderPinDots(false);
+
+        // Allow typing the PIN on a physical/keyboard, not just the on-screen pad.
+        document.addEventListener('keydown', pinKeyHandler);
+      }
+      function closePin() {
+        pinIsOpen = false;
+        document.removeEventListener('keydown', pinKeyHandler);
+        $('pinRoot').innerHTML = '';
+        focusSearch();
+      }
+      // Numbers enter a digit, Backspace/Delete removes one, Escape cancels.
+      function pinKeyHandler(e) {
+        if (!pinIsOpen) return;
+        if (e.key === 'Escape') { e.preventDefault(); closePin(); return; }
+        if (e.key === 'Backspace' || e.key === 'Delete') { e.preventDefault(); pinBack(); return; }
+        if (e.key.length === 1 && e.key >= '0' && e.key <= '9') { e.preventDefault(); pinPush(e.key); }
+      }
+      function renderPinDots(error) {
+        var dots = $('pinDots');
+        if (!dots) return;
+        dots.innerHTML = '';
+        for (var i = 0; i < 4; i++) {
+          dots.appendChild(el('div', 'pin-dot' + (i < pinDigits.length ? ' filled' : '') + (error ? ' error' : '')));
+        }
+      }
+      function pinPush(d) {
+        if (pinPending || pinDigits.length >= 4) return;
+        pinDigits += d;
+        renderPinDots(false);
+        if (pinDigits.length === 4) {
+          pinPending = true;
+          var attempt = pinDigits;
+          setTimeout(function () {
+            google.script.run
+              .withSuccessHandler(function (ok) {
+                if (ok) { closePin(); openAdmin(); }
+                else { failPin(); }
+              })
+              .withFailureHandler(failPin)
+              .validateAdminPin(attempt);
+          }, 150);
+        }
+      }
+      function failPin() {
+        renderPinDots(true);
+        setTimeout(function () { pinDigits = ''; pinPending = false; renderPinDots(false); }, 600);
+      }
+      function pinBack() {
+        if (pinPending) return;
+        pinDigits = pinDigits.slice(0, -1);
+        renderPinDots(false);
+      }
+
+      // =====================================================================
+      // ADMIN CONSOLE
+      // =====================================================================
+      // Holds references to the parts of the open modal we update in place.
+      var adminEls = {};
+
+      function adminSignedIn() {
+        return allStudents
+          .filter(function (s) { return statusById[s.studentId] === 'IN'; })
+          .sort(function (a, b) { return (signInTimes[b.studentId] || 0) - (signInTimes[a.studentId] || 0); });
+      }
+      function adminTopVisitors() {
+        return allStudents.slice()
+          .sort(function (a, b) { return (b.visits || 0) - (a.visits || 0); })
+          .slice(0, 8);
+      }
+
+      function openAdmin() {
+        adminOpen = true;
+        adminTab = 'in';
+        buildAdminShell();  // creates the modal once → pop-in animation fires a single time
+        renderAdmin();      // populate stats + the active tab
+        loadData(true);     // refresh from the server; its handler calls renderAdmin() again
+      }
+      function closeAdmin() {
+        adminOpen = false;
+        adminEls = {};
+        $('adminRoot').innerHTML = '';
+        focusSearch();
+      }
+
+      // Build the static modal scaffold once. Tab switches and data refreshes only
+      // update the pieces inside it, so the pop-in animation never re-fires.
+      function buildAdminShell() {
+        var overlay = el('div', 'admin-overlay');
+        var modal = el('div', 'admin-modal');
+
+        // Header
+        var header = el('div', 'admin-header');
+        var hleft = el('div');
+        var title = el('div', 'admin-title');
+        title.innerHTML = 'Admin <span class="amber-word"></span>';
+        title.querySelector('.amber-word').textContent = 'Console';
+        hleft.appendChild(title);
+        var dateStr = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase();
+        hleft.appendChild(el('div', 'admin-title-sub', dateStr));
+        header.appendChild(hleft);
+        var close = el('button', 'admin-close', '✕');
+        close.setAttribute('aria-label', 'Close');
+        close.addEventListener('click', closeAdmin);
+        header.appendChild(close);
+        modal.appendChild(header);
+
+        var body = el('div', 'admin-body');
+
+        // Sidebar (numbers updated in place via adminEls)
+        var side = el('aside', 'admin-side');
+        var featured = adminStat('featured', '0', 'Currently In');
+        adminEls.currentlyIn = featured.querySelector('.admin-stat-num');
+        side.appendChild(featured);
+        var pair = el('div');
+        pair.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:8px';
+        var rosterStat = adminStat('', '0', 'Roster', 32);
+        adminEls.roster = rosterStat.querySelector('.admin-stat-num');
+        pair.appendChild(rosterStat);
+        var retryStat = adminStat('warn', '0', 'To Retry', 32);
+        adminEls.toRetry = retryStat.querySelector('.admin-stat-num');
+        pair.appendChild(retryStat);
+        side.appendChild(pair);
+        var visitsStat = adminStat('green', '0', 'Visits This Term', 32);
+        adminEls.visits = visitsStat.querySelector('.admin-stat-num');
+        side.appendChild(visitsStat);
+
+        var actions = el('div', 'admin-side-actions');
+        var refresh = el('button', 'admin-side-action');
+        refresh.innerHTML = '<span>Refresh data</span><span>↻</span>';
+        refresh.addEventListener('click', function () { pushToast('Refreshing…', ''); loadData(false); });
+        actions.appendChild(refresh);
+        var outAll = el('button', 'admin-side-action danger');
+        outAll.innerHTML = '<span>Sign out all</span><span>↺</span>';
+        outAll.addEventListener('click', function () {
+          var c = adminSignedIn().length;
+          if (c > 0 && confirm('Sign out all ' + c + ' students?')) signOutAll();
+        });
+        adminEls.outAll = outAll;
+        actions.appendChild(outAll);
+        side.appendChild(actions);
+        body.appendChild(side);
+
+        // Main: tabs (updated in place) + a content area we swap on tab change
+        var main = el('div', 'admin-main');
+        var tabs = el('div', 'admin-tabs');
+        adminEls.tabIn = adminTabBtn('in', 'Signed In');
+        adminEls.tabTop = adminTabBtn('top', 'Top Visitors');
+        adminEls.tabRetry = adminTabBtn('retry', 'Failed Sync');
+        tabs.appendChild(adminEls.tabIn);
+        tabs.appendChild(adminEls.tabTop);
+        tabs.appendChild(adminEls.tabRetry);
+        main.appendChild(tabs);
+        adminEls.content = el('div', 'admin-content');
+        main.appendChild(adminEls.content);
+        body.appendChild(main);
+
+        modal.appendChild(body);
+        overlay.appendChild(modal);
+        var root = $('adminRoot');
+        root.innerHTML = '';
+        root.appendChild(overlay);
+      }
+
+      function setAdminTab(key) {
+        if (adminTab === key) return;
+        adminTab = key;
+        renderAdmin(true); // animate the content swap
+      }
+
+      // Refresh the open modal in place — stats, tab states, and active pane.
+      // Pass animate=true (tab switches) to fade the content; data refreshes don't.
+      function renderAdmin(animate) {
+        if (!adminOpen || !adminEls.content) return;
+
+        var signedIn = adminSignedIn();
+        var c = signedIn.length;
+
+        adminEls.currentlyIn.textContent = c;
+        adminEls.roster.textContent = allStudents.length;
+        adminEls.toRetry.textContent = failedOps.length;
+        adminEls.visits.textContent = totalVisits();
+        adminEls.outAll.disabled = c === 0;
+
+        setAdminTabState(adminEls.tabIn, 'in', c, false);
+        setAdminTabState(adminEls.tabTop, 'top', null, false);
+        setAdminTabState(adminEls.tabRetry, 'retry', failedOps.length > 0 ? failedOps.length : null, true);
+
+        var pane;
+        if (adminTab === 'in') pane = buildAdminIn(signedIn);
+        else if (adminTab === 'top') pane = buildAdminTop(adminTopVisitors());
+        else pane = buildAdminRetry();
+
+        var wrap = el('div', 'admin-tabpane' + (animate ? ' fade' : ''));
+        wrap.appendChild(pane);
+        adminEls.content.innerHTML = '';
+        adminEls.content.appendChild(wrap);
+      }
+
+      function setAdminTabState(btn, key, count, warn) {
+        if (!btn) return;
+        btn.className = 'admin-tab' + (adminTab === key ? ' active' : '');
+        var cnt = btn._count;
+        if (count == null) {
+          cnt.style.display = 'none';
+        } else {
+          cnt.style.display = '';
+          cnt.className = 'count' + (warn ? ' warn' : '');
+          cnt.textContent = count;
+        }
+      }
+
+      // variant: 'featured' tints the whole card; 'green'/'warn' only colour the number.
+      function adminStat(variant, num, label, numSize) {
+        var stat = el('div', 'admin-stat' + (variant === 'featured' ? ' featured' : ''));
+        var numCls = 'admin-stat-num' + (variant === 'green' ? ' green' : variant === 'warn' ? ' warn' : '');
+        var n = el('div', numCls, num);
+        if (numSize) n.style.fontSize = numSize + 'px';
+        stat.appendChild(n);
+        stat.appendChild(el('div', 'admin-stat-label', label));
+        return stat;
+      }
+
+      function adminTabBtn(key, label) {
+        var b = el('button', 'admin-tab');
+        b.appendChild(document.createTextNode(label + ' '));
+        var cnt = el('span', 'count');
+        cnt.style.display = 'none';
+        b.appendChild(cnt);
+        b._count = cnt; // updated in place by setAdminTabState
+        b.addEventListener('click', function () { setAdminTab(key); });
+        return b;
+      }
+
+      function buildAdminIn(list) {
+        if (list.length === 0) {
+          return adminEmpty('No one signed in yet', "As students arrive and tap their names, they'll appear here in order.");
+        }
+        var wrap = el('div', 'admin-list');
+        list.forEach(function (s) {
+          var row = el('div', 'admin-row');
+          row.appendChild(el('div', 'avatar', initials(s.displayName)));
+          var mid = el('div');
+          mid.appendChild(el('div', 'admin-row-name', s.displayName));
+          mid.appendChild(el('div', 'admin-row-meta', 'Tutor ' + (s.tutor || '—') + ' · ' + (s.visits || 0) + ' visits this term'));
+          row.appendChild(mid);
+          var t = signInTimes[s.studentId];
+          row.appendChild(el('div', 'admin-row-time', t ? formatTime(new Date(t)) : '—'));
+          var btn = el('button', 'admin-row-action', 'Sign out');
+          btn.addEventListener('click', function () { adminSignOut(s); });
+          row.appendChild(btn);
+          wrap.appendChild(row);
+        });
+        return wrap;
+      }
+
+      function buildAdminTop(list) {
+        var wrap = el('div', 'admin-list');
+        list.forEach(function (s, i) {
+          var row = el('div', 'admin-row');
+          var av = el('div', 'avatar', String(i + 1));
+          av.style.background = i === 0 ? 'var(--amber)' : 'var(--cream-2)';
+          av.style.borderColor = i === 0 ? 'var(--navy)' : 'var(--rule)';
+          row.appendChild(av);
+          var mid = el('div');
+          mid.appendChild(el('div', 'admin-row-name', s.displayName));
+          mid.appendChild(el('div', 'admin-row-meta', 'Tutor ' + (s.tutor || '—')));
+          row.appendChild(mid);
+          row.appendChild(el('div', 'admin-row-time', String(s.visits || 0)));
+          row.appendChild(el('div', 'admin-rank-label', 'VISITS'));
+          wrap.appendChild(row);
+        });
+        return wrap;
+      }
+
+      function buildAdminRetry() {
+        if (failedOps.length === 0) {
+          return adminEmpty('All synced', 'Every sign-in has been written successfully. Nothing to retry.');
+        }
+        var frag = document.createDocumentFragment();
+        var banner = el('div', 'sync-banner');
+        banner.innerHTML = ICON_WARN_TRI;
+        banner.appendChild(document.createTextNode(
+          failedOps.length + ' sign-in' + (failedOps.length === 1 ? '' : 's') + ' failed to save. Tap retry to write them again.'
+        ));
+        frag.appendChild(banner);
+
+        var wrap = el('div', 'admin-list');
+        failedOps.forEach(function (op, i) {
+          var row = el('div', 'admin-row');
+          row.appendChild(el('div', 'avatar', initials(op.student.displayName)));
+          var mid = el('div');
+          mid.appendChild(el('div', 'admin-row-name', op.student.displayName));
+          var meta = el('div', 'admin-row-meta');
+          meta.appendChild(document.createTextNode('Tried to mark '));
+          meta.appendChild(el('strong', null, op.intendedStatus));
+          meta.appendChild(document.createTextNode(' · ' + formatTime(new Date(op.ts))));
+          mid.appendChild(meta);
+          row.appendChild(mid);
+          row.appendChild(el('div'));
+          var btn = el('button', 'admin-row-action retry', 'Retry');
+          btn.addEventListener('click', function () { retryOp(i); });
+          row.appendChild(btn);
+          wrap.appendChild(row);
+        });
+        frag.appendChild(wrap);
+        return frag;
+      }
+
+      function adminEmpty(h, p) {
+        var es = el('div', 'empty-state');
+        es.appendChild(el('h3', null, h));
+        es.appendChild(el('p', null, p));
+        return es;
+      }
+
+      function adminSignOut(student) {
+        var id = student.studentId;
+        if (updatingIds.has(id) || statusById[id] !== 'IN') return;
+        updatingIds.add(id);
+        statusById[id] = 'OUT';
+        delete signInTimes[id];
+        lastActionTime = Date.now();
+        renderAdmin();
+        renderHero();
+        pushToast('Signed out: ' + student.displayName, 'success');
+
+        google.script.run
+          .withSuccessHandler(function (res) {
+            updatingIds.delete(id);
+            if (!res || !res.success) {
+              statusById[id] = 'IN';
+              addToFailedQueue(student, 'OUT');
+              pushToast('Sign-out failed for ' + student.displayName, 'error');
+            }
+            renderAdmin();
+            renderHero();
+            renderFooterRetry();
+          })
+          .withFailureHandler(function (err) {
+            console.error(err);
+            updatingIds.delete(id);
+            statusById[id] = 'IN';
+            addToFailedQueue(student, 'OUT');
+            renderAdmin();
+            renderHero();
+            renderFooterRetry();
+            pushToast('Sign-out failed for ' + student.displayName, 'error');
+          })
+          .logSignAction(id, 'OUT');
+      }
+
+      function signOutAll() {
+        var ins = allStudents.filter(function (s) { return statusById[s.studentId] === 'IN'; });
+        ins.forEach(function (s) { statusById[s.studentId] = 'OUT'; delete signInTimes[s.studentId]; });
+        lastActionTime = Date.now();
+        renderAdmin();
+        renderHero();
+        pushToast('Signing out all students…', 'success');
+        ins.forEach(function (s) {
+          google.script.run
+            .withSuccessHandler(function (res) {
+              if (!res || !res.success) { addToFailedQueue(s, 'OUT'); renderFooterRetry(); }
+            })
+            .withFailureHandler(function (err) {
+              console.error(err);
+              addToFailedQueue(s, 'OUT');
+              renderFooterRetry();
+            })
+            .logSignAction(s.studentId, 'OUT');
+        });
+      }
+
+      // =====================================================================
+      // INIT
+      // =====================================================================
+      window.addEventListener('load', function () {
+        $('brandSun').innerHTML = sunMark(52);
+        $('moodRays').innerHTML = moodRaysSVG();
+
+        renderClock();
+        renderHero();
+        renderResults();
+        renderFooterRetry();
+
+        loadData(false);
+        focusSearch();
+
+        // Search input
+        var input = $('searchInput');
+        input.addEventListener('input', function (e) {
+          query = e.target.value;
+          $('searchClear').style.display = query ? 'flex' : 'none';
+          debounceSearch();
+        });
+        input.addEventListener('keydown', function (e) { if (e.key === 'Escape') resetSearch(); });
+        $('searchClear').addEventListener('click', resetSearch);
+        $('staffBtn').addEventListener('click', openPin);
+
+        // Tick the clock; service-window / greeting refresh on the data poll.
+        setInterval(renderClock, 30000);
+
+        // Poll every 15s — skip while an action is in flight or just settled.
+        setInterval(function () {
+          var cooled = Date.now() - lastActionTime > 5000;
+          if (updatingIds.size === 0 && cooled) loadData(true);
+        }, 15000);
+      });
     </script>
   </body>
 </html>

@@ -42,9 +42,33 @@ const LOG_LOOKBACK_ROWS = 1500;
 /***********************
  * WEB APP
  ***********************/
-function doGet() {
-  return HtmlService
-    .createTemplateFromFile('Index')
+function doGet(e) {
+  const view = (e && e.parameter && e.parameter.view) ? String(e.parameter.view).toLowerCase() : '';
+
+  let webAppUrl = '';
+  try { webAppUrl = ScriptApp.getService().getUrl() || ''; } catch (err) { /* preview/editor context */ }
+
+  // Explicit mobile request (or a phone auto-redirected here from the kiosk).
+  if (view === 'mobile') {
+    return HtmlService
+      .createTemplateFromFile('Mobile')
+      .evaluate()
+      .setTitle('Rise and Shine — Mobile')
+      .addMetaTag('viewport', 'width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover')
+      .addMetaTag('apple-mobile-web-app-capable', 'yes')
+      .addMetaTag('apple-mobile-web-app-status-bar-style', 'default')
+      .addMetaTag('theme-color', '#FBF1E3')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  }
+
+  // Default (no param) and ?view=kiosk both serve the iPad kiosk. When no view
+  // is forced, the kiosk page auto-redirects phone-sized devices to the mobile
+  // view (see the detection script at the top of Index.html). The iPad sees no
+  // change — detection returns false, so it loads the kiosk directly.
+  const t = HtmlService.createTemplateFromFile('Index');
+  t.webAppUrl = webAppUrl;
+  t.forcedView = (view === 'kiosk') ? 'kiosk' : '';
+  return t
     .evaluate()
     .setTitle('Breakfast Club Sign-in')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0')
@@ -118,6 +142,7 @@ function getInitialData() {
         studentId: String(id),
         displayName: `${first} ${last}`.trim() || String(id),
         tutor: r[STUDENT_HEADERS.TUTOR - 1] || '',
+        visits: Number(r[STUDENT_HEADERS.VISITS - 1]) || 0,
         status: statusMap[String(id)] || null
       });
     });
