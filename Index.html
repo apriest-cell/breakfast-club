@@ -1470,6 +1470,13 @@
         renderFooterRetry();
       }
 
+      function retryAll() {
+        failedOps.slice().forEach(function (op) {
+          var idx = failedOps.indexOf(op);
+          if (idx >= 0) retryOp(idx);
+        });
+      }
+
       function retryOp(index) {
         var op = failedOps[index];
         if (!op) return;
@@ -1886,6 +1893,11 @@
         banner.appendChild(document.createTextNode(
           failedOps.length + ' sign-in' + (failedOps.length === 1 ? '' : 's') + ' failed to save. Tap retry to write them again.'
         ));
+        var retryAllBtn = el('button', 'admin-row-action retry', 'Retry all');
+        retryAllBtn.style.marginLeft = 'auto';
+        retryAllBtn.style.flexShrink = '0';
+        retryAllBtn.addEventListener('click', retryAll);
+        banner.appendChild(retryAllBtn);
         frag.appendChild(banner);
 
         var wrap = el('div', 'admin-list');

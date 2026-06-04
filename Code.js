@@ -80,6 +80,7 @@ function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('Breakfast Club')
     .addItem('Archive old logs', 'archiveOldLogs')
+    .addItem('Purge empty rows', 'purgeEmptyRows')
     .addToUi();
 }
 
@@ -215,40 +216,44 @@ function logSignAction(studentId, newStatus) {
     const now = new Date();
     const tz = Session.getScriptTimeZone();
 
-    // 1. Duplicate check (lockless read — rare race is acceptable)
-    const currentStatus = getLastActionToday_(logSheet, studentId, now);
-    if (currentStatus === newStatus) {
-      return { success: true, skippedDuplicate: true, studentId: String(studentId), newStatus };
-    }
+    // Serialise concurrent sign-ins: hold the lock for the duplicate check + write
+    // so no two executions can race on appendRow() and leave empty rows.
+    // UI snappiness is unaffected — the client already updated optimistically.
+    const lock = LockService.getScriptLock();
+    lock.waitLock(8000);
 
-    // 2. Append log row (lockless — Sheets handles concurrent appends safely)
-    const dateOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const timeStr = Utilities.formatDate(now, tz, 'HH:mm:ss');
-    const nextRow = logSheet.getLastRow() + 1;
-    logSheet.getRange(nextRow, 1, 1, 5).setValues([[dateOnly, timeStr, studentId, newStatus, 'WebApp']]);
-
-    // 3. Invalidate cached status map so next poll picks up this change
-    try { CacheService.getScriptCache().remove('todayStatusMap'); } catch (e) {}
-
-    // 4. Increment visits outside the main write path (brief targeted lock)
-    //    Failure here is non-fatal — the sign-in log is already saved
-    if (newStatus === 'IN' && currentStatus !== 'IN') {
-      try {
-        const lock = LockService.getScriptLock();
-        lock.waitLock(10000);
-        try {
-          incrementVisitCount_(studentSheet, studentId);
-        } finally {
-          try { lock.releaseLock(); } catch (e) {}
-        }
-      } catch (e) {
-        console.error('incrementVisitCount_ lock timeout (non-fatal):', e);
+    let currentStatus;
+    try {
+      // 1. Duplicate check under lock — atomic with the write below
+      currentStatus = getLastActionToday_(logSheet, studentId, now);
+      if (currentStatus === newStatus) {
+        return { success: true, skippedDuplicate: true, studentId: String(studentId), newStatus };
       }
+
+      // 2. Append log row while holding the lock — prevents concurrent calls from
+      //    racing to find the same "last row" and producing empty gaps
+      const dateOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const timeStr = Utilities.formatDate(now, tz, 'HH:mm:ss');
+      logSheet.appendRow([dateOnly, timeStr, studentId, newStatus, 'WebApp']);
+
+      // 3. Increment visits under the same lock — no second acquisition needed
+      if (newStatus === 'IN' && currentStatus !== 'IN') {
+        incrementVisitCount_(studentSheet, studentId);
+      }
+    } finally {
+      try { lock.releaseLock(); } catch (e) {}
     }
+
+    // 4. Invalidate cached status map so next poll picks up this change
+    try { CacheService.getScriptCache().remove('todayStatusMap'); } catch (e) {}
 
     return { success: true, studentId: String(studentId), newStatus };
 
   } catch (e) {
+    if (e.message && e.message.includes('Timed out waiting for lock')) {
+      console.error('logSignAction lock timeout:', e);
+      return { success: false, message: 'Server busy, try again.' };
+    }
     console.error('logSignAction error:', e);
     return { success: false, message: 'Server busy, try again.' };
   }
@@ -331,6 +336,39 @@ function archiveOldLogs() {
   if (keep.length) {
     sheet.getRange(2, 1, keep.length, 5).setValues(keep);
   }
+}
+
+/**
+ * Removes all empty rows from BreakfastLog and BreakfastLog_Archive, compacting both.
+ * Run once via Breakfast Club > Purge empty rows to fix an inflated sheet.
+ */
+function purgeEmptyRows() {
+  const ui = SpreadsheetApp.getUi();
+  const ss = SpreadsheetApp.openById(getSpreadsheetId_());
+  const targets = [
+    { name: LOG_SHEET_NAME, sheet: ss.getSheetByName(LOG_SHEET_NAME) },
+    { name: LOG_ARCHIVE_SHEET_NAME, sheet: ss.getSheetByName(LOG_ARCHIVE_SHEET_NAME) }
+  ];
+
+  const results = [];
+  targets.forEach(({ name, sheet }) => {
+    if (!sheet) { results.push(name + ': sheet not found'); return; }
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) { results.push(name + ': nothing to clean'); return; }
+
+    const range = sheet.getRange(2, 1, lastRow - 1, 5);
+    const values = range.getValues();
+    const keep = values.filter(r => r.some(cell => cell !== '' && cell !== null));
+    const removed = values.length - keep.length;
+
+    if (removed === 0) { results.push(name + ': already clean'); return; }
+
+    range.clearContent();
+    if (keep.length > 0) sheet.getRange(2, 1, keep.length, 5).setValues(keep);
+    results.push(name + ': removed ' + removed + ' empty row' + (removed === 1 ? '' : 's'));
+  });
+
+  ui.alert('Purge complete:\n\n' + results.join('\n'));
 }
 
 /***********************
