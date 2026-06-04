@@ -230,11 +230,14 @@ function logSignAction(studentId, newStatus) {
         return { success: true, skippedDuplicate: true, studentId: String(studentId), newStatus };
       }
 
-      // 2. Append log row while holding the lock — prevents concurrent calls from
-      //    racing to find the same "last row" and producing empty gaps
+      // 2. Write log row — explicit getLastRow()+1 under the lock avoids appendRow()'s
+      //    two-step INSERT_ROWS race; flush() commits before the lock is released so
+      //    the next queued execution reads an accurate lastRow.
+      const lastRow = logSheet.getLastRow();
       const dateOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       const timeStr = Utilities.formatDate(now, tz, 'HH:mm:ss');
-      logSheet.appendRow([dateOnly, timeStr, studentId, newStatus, 'WebApp']);
+      logSheet.getRange(lastRow + 1, 1, 1, 5).setValues([[dateOnly, timeStr, studentId, newStatus, 'WebApp']]);
+      SpreadsheetApp.flush();
 
       // 3. Increment visits under the same lock — no second acquisition needed
       if (newStatus === 'IN' && currentStatus !== 'IN') {
